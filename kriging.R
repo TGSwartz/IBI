@@ -27,18 +27,17 @@ MonthlyKriging <- function(data, targetCol, shapefile, resolution) {
   proj4string(grid) <- proj4string(shapefile)
   grid <- intersect(shapefile, grid)
   
+  data$targetColVec <- data[, targetCol]
   data <- MakeGISCompatible(data)
   proj4string(grid) <- proj4string(data)
   
   # krige the target column
-  # WHY DOES HAVE targetCol NOT WORK???
   
-  
-  out <- autoKrige(formula = monAvg ~1, input_data = data, new_data = grid)
+  out <- autoKrige(formula = targetColVec ~1, input_data = data, new_data = grid)
   return(out)
 }
 
 rainGauge <- read.csv("/Users/Tom/Documents/IBI/rwandaWeatherDataAnalysis/Daily_rain_Rwanda.csv")
 rwaSHP <- readOGR(dsn = "/Users/Tom/Desktop/GIS/IBI/RWA_adm/", layer = "RWA_adm0")
 rainGauge <- CreateMonthlyAvg(rainGauge, 9, 39, 2010, 3)
-krigeResult <- MonthlyKriging(rainGauge, monAvg, rwaSHP, .05)
+krigeResult <- MonthlyKriging(rainGauge, "monAvg", rwaSHP, .05)
