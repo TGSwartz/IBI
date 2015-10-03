@@ -1,46 +1,55 @@
 source("/Users/Tom/Github/IBI/geoFunctions.R")
 
-library(lubridate)
+wd <- "/Users/Tom/Documents/IBI/evi/out/"
 
-wd <- "/Users/Tom/Documents/IBI/evi/"
+# set first date and end of files to load
 
-year <- 2010
-month <- 1
-day <- 9
+firstYear <- year <- 2010
+firstMonth <- month <- 1
+firstDay <- day <- 9
 
-# searches for the first day that has a composite, then breaks the for loop 
-# and returns the day of the month
+endYear <- 2015
+endMonth <- 05
+endDay <- 31
 
-# THIS HAS BEEN REMOVED AS FIRST DAY IS ALWAYS THE 9TH
+Date <- as.Date(paste(year, month, as.character(day), sep = "-"))
 
-# for (firstDay in 1:16) {
-#   month <- ConvertToTwoDigits(month)
-#   firstDay <- ConvertToTwoDigits(firstDay)
-#   file <- paste(wd, "MYD13A1_", year, "-",  month, "-", firstDay, 
-#                 ".500m_16_days_EVI.tif", sep = "")
-#   if (file.exists(file)) {
-#     break
-#   }
-# }
-
-
-
-
-Date <- as.Date(paste(year, month, as.character(firstDay), sep = "-"))
-
-while (as.Date(Date) < Sys.Date()) {
-  print(Date)
-  
+while (as.Date(Date) < as.Date(paste(endYear, endMonth, endDay, sep = "-"))) { 
   # break apart the day and convert to two characters for reading the files
   
   year <- ConvertToTwoDigits(year(Date))
   month <- ConvertToTwoDigits(month(Date))
   day <- ConvertToTwoDigits(day(Date))
+  
+  # assign file name and new raster name
+  
   file <- paste(wd, "MYD13A1_", year, "-",  month, "-", day, 
                 ".500m_16_days_EVI.tif", sep = "")
+  rasterName <- paste("evi", year, "_", month, "_", day, sep = "")
+  
+  # if file exists, do approriate functions to project raster, adjust it to correct VI ranges
+  # crop it to close to Mulindi 
+  
   if(file.exists(file)) {
-    print(file)
+    rasterName <- projectRaster(from = assign(rasterName, raster(file)), 
+                                crs = "+proj=longlat +datum=WGS84 +no_defs")
+    rasterName <- ViAdjust(rasterName) 
+    rasterName <- crop(rasterName, MakePointExtent("/Users/Tom/Documents/IBI/plantationLoc.csv", 
+                                                   "plantationName", "Mulindi", .025))  
   }
+  else {
+    break
+  }
+  print(file) # print names to check progress
+  # make a vector of raster Names
+  
+  if (as.numeric(year) == firstYear & as.numeric(month) == firstMonth & 
+      as.numeric(day) == firstDay) {
+    names <- rasterName
+  } else {
+    names <- c(names, rasterName)
+  }
+  
   Date <- Date + 16 # Move to the next 16 day composite
   
   # this resets the day to the 9th when the loop rolls over to a new year
@@ -49,3 +58,16 @@ while (as.Date(Date) < Sys.Date()) {
     Date <- as.Date(paste(year(Date), month(Date), "09", sep = "-"))
   }
 }
+
+bimonthBrick <- brick(names) # make a brick of the rasters
+#bimonthEvi <- rep(NA, length(names)) # create an empty vector for the evi
+bimonthEvi <- data.frame(bimonthID = seq(from = 1, to = length(names), by  = 1),
+                         evi = rep(NA, length(names)),
+                         date = rep(NA, length(names))) #make an evi  
+for (i in 1:length(names)) {
+  # extract the mean evi for the rasters and date (to check correct merging)
+  bimonthEvi[i, ]$evi <- mean(extract(bimonthBrick[[i]],extent(bimonthBrick[[i]]) ), na.rm = T)
+  bimonthEvi[i, ]$date <- names(bimonthBrick[[i]])
+}
+
+write.csv(bimonthEvi, "/Users/Tom/Documents/IBI/mulindiBimonthEvi.csv", row.names = F)
