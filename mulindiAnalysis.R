@@ -1,7 +1,7 @@
 # load libraries
 
 libraries <- c("data.table", "xts", "lubridate", "TTR", "plyr")
-lapply(libraries, require, character.only = TRUE)
+lapply(libraries, require, character.only = TRUE, quietly = TRUE)
 
 # read data and reset names and convert to time
 mulindi <- read.csv("/Users/Tom/Documents/IBI/MULINDIdata.csv")
