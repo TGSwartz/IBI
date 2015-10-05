@@ -24,7 +24,7 @@ ViAdjust <- function(data) {
 # takes a point's lat and lon and makes a bounding box around it up to a distance in degrees
 # specified by the user
 
-MakePointExtent <- function(pointFile, rowName, point, degreeDistance) {
+DegreePointExtent <- function(pointFile, rowName, point, degreeDistance) {
   csv <- read.csv(pointFile)
   lon <- csv[csv[, rowName] == point, ]$longitude
   lat <- csv[csv[, rowName] == point, ]$latitude
@@ -36,6 +36,14 @@ MakePointExtent <- function(pointFile, rowName, point, degreeDistance) {
   return(box)
 }
 
+# creates a bounding box around a point in distance in meters
+# input should be a spatial point (or a set of points, which will 
+# create a bounding box around all of it)
+
+MeterPointExtent <- function(dta, meterDistance) {
+  box <- extent(xmin(dta) - meterDistance, xmax(dta) + meterDistance, 
+                ymin(dta) - meterDistance, ymax(dta) + meterDistance)
+}
 # function that resamples the "value raster" (ndvi, rain, etc.)
 # returns a raster with the same resolution and extent of the coverType raster (30cm) 
 # the output raster has the extent set and the non-crop cells are made to be NA
@@ -84,7 +92,7 @@ ReprojectParam <- function(input, output, paramFile) {
   cat("DATUM = WGS84")
   cat("\n")
   cat("\n")
-  cat("UTM_ZONE = 0")
+  cat("UTM_ZONE = -35")
   cat("\n") # This last one is important since it won't work properly 
             # without it
   sink()
