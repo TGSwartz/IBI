@@ -24,16 +24,21 @@ ViAdjust <- function(data) {
 # takes a point's lat and lon and makes a bounding box around it up to a distance in degrees
 # specified by the user
 
-DegreePointExtent <- function(pointFile, rowName, point, degreeDistance) {
-  csv <- read.csv(pointFile)
-  lon <- csv[csv[, rowName] == point, ]$longitude
-  lat <- csv[csv[, rowName] == point, ]$latitude
-  upperLon <- lon + degreeDistance
-  lowerLon <- lon - degreeDistance
-  upperLat <- lat + degreeDistance
-  lowerLat <- lat - degreeDistance
-  box <- extent(lowerLon, upperLon, lowerLat, upperLat) # vector (length=4; order= xmin, xmax, ymin, ymax)
-  return(box)
+# DegreePointExtent <- function(pointFile, rowName, point, degreeDistance) {
+#   csv <- read.csv(pointFile)
+#   lon <- csv[csv[, rowName] == point, ]$longitude
+#   lat <- csv[csv[, rowName] == point, ]$latitude
+#   upperLon <- lon + degreeDistance
+#   lowerLon <- lon - degreeDistance
+#   upperLat <- lat + degreeDistance
+#   lowerLat <- lat - degreeDistance
+#   box <- extent(lowerLon, upperLon, lowerLat, upperLat) # vector (length=4; order= xmin, xmax, ymin, ymax)
+#   return(box)
+# }
+
+DegreePointExtent <- function(dta, degreeDistance) {
+  box <- extent(xmin(dta) - degreeDistance, xmax(dta) + degreeDistance, 
+                ymin(dta) - degreeDistance, ymax(dta) + degreeDistance)
 }
 
 # creates a bounding box around a point in distance in meters
