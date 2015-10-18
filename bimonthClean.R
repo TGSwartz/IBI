@@ -1,4 +1,4 @@
-libraries <- c("data.table", "xts", "lubridate", "TTR", "plyr")
+libraries <- c("data.table", "xts", "lubridate", "TTR", "plyr", "caTools")
 lapply(libraries, require, character.only = TRUE, quietly = TRUE)
 
 firstYear <- 2010
@@ -28,8 +28,8 @@ MulindiClean <- function(){
   # make NAs in yield and rainfall 0s
   # check to make sure this is ok
   
-  mulindi[is.na(mulindi$rainfall),]$rainfall <- 0
-  mulindi[is.na(mulindi$yield),]$yield <- 0
+  #mulindi[is.na(mulindi$rainfall),]$rainfall <- 0
+  #mulindi[is.na(mulindi$yield),]$yield <- 0
   
   # remove probable anomolous tMin
   
@@ -38,7 +38,8 @@ MulindiClean <- function(){
   #mulindi <- mulindi[!is.na(mulindi$tMax), ] # removes
   mulindi$month <- as.factor(month(mulindi$date)) # factor month for regression purposes
   #mulindi$day <- as.factor(day(mulindi$date))
-  mulindi$year <- as.factor(as.numeric(year(mulindi$date))-2010) # convert year to 0 for 2010 as a base
+  #mulindi$year <- as.factor(as.numeric(year(mulindi$date))-2010) # convert year to 0 for 2010 as a base
+  mulindi$year <- as.factor(year(mulindi$date))
   return(mulindi)
 }
 
@@ -73,20 +74,36 @@ for(i in 1:nrow(mulindi)) {
   date <- date + 1
 }
 
-
+#mulindi <- merge(tamsat, mulindi, by  = "date", all.x = F, all.y = F)
+#mulindi$rainfall <- mulindi$meanRainfall
 mulindi <- mulindi[mulindi$tMin > 7, ] # remove anomalous observations
-mulindi <- aggregate(. ~ bimonthID, mulindi, FUN = mean)
-mulindi$month <- as.factor(floor(mulindi$month)) # make months a factor and round them down (abritary, could be rounded up but needs to be rounded)
+#mulindi <- aggregate(. ~ bimonthID, mulindi, FUN = mean)
+#mulindi$month <- as.factor(floor(mulindi$month)) # make months a factor and round them down (abritary, could be rounded up but needs to be rounded)
 bimonthEvi <- read.csv("/Users/Tom/Documents/IBI/mulindiBimonthEvi.csv", stringsAsFactors = F)
 mulindi <- merge(mulindi, bimonthEvi)
 mulindi <- mulindi[order(mulindi$date), ]
-#mulindi <- slide(mulindi, "evi", slideBy = -1)
-mulindi$tMinAvg <- SMA(mulindi$tMin, 4) # average of 4 periods determined by correlation
-mulindi$rainfallAvg <- SMA(mulindi$rainfall, 4) # average of 4 periods determined by correlation
-mulindi$tMaxAvg <- SMA(mulindi$rainfall, 2) # average of 2 periods determined by correlation
+mulindi <- mulindi[,!(names(mulindi) %in% c("fileDate"))]
+#mulindi <- mulindi[,!(names(mulindi) %in% c("date"))]
+mulindi$tMinAvg <- rollapply(mulindi$tMin, width = which.max(tMinCor), mean, na.rm = T, fill = NA, align = "right") # average of 4 periods determined by correlation
+mulindi$rainfallAvg <- rollapply(rainDf$medianRainfall, width = which.max(medianCor), mean, na.rm = T, fill = NA, align = "right") # average of 4 periods determined by correlation# average of 4 periods determined by correlation
+mulindi$tMaxAvg <- rollapply(mulindi$tMax, width = which.max(tMaxCor), mean, na.rm = T, fill = NA, align = "right") # average of 4 periods determined by correlation # average of 2 periods determined by correlation
+mulindi$time <- seq(1, nrow(mulindi), by = 1)
 
-predCol <- c("rainfall", "tMax", "tMin", "month", "evi", "tMinAvg", 
-             "rainfallAvg", "tMaxAvg")
-predictors <- subset(mulindi, select = predCol)
+write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiDisaggData.csv")
+
+# mulindi <- aggregate(. ~ bimonthID, mulindi, FUN = mean)
+# mulindi$tMinAvg <- SMA(mulindi$tMin, 4) # average of 4 periods determined by correlation
+# mulindi$rainfallAvg <- SMA(mulindi$rainfall, 4) # average of 4 periods determined by correlation
+# mulindi$tMaxAvg <- SMA(mulindi$tMax, 2) # average of 2 periods determined by correlation
+# mulindi$year <- floor(mulindi$year + 2009) 
+# mulindi <- mulindi[,!(names(mulindi) %in% c("date"))]
+# mulindi$month <- as.factor(floor(mulindi$month)) # make months a factor and round them down (abritary, could be rounded up but needs to be rounded)
+# write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiAggData.csv")
+
+trainCol <- c("yield", #"rainfall", "tMax", "tMin", 
+              "month", "evi","tMinAvg", 
+             "rainfallAvg", "tMaxAvg", "time", "year")
+mulindiTrainDf <- subset(mulindi, select = trainCol)
+
 
 
