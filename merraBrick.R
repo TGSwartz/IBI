@@ -60,10 +60,10 @@ while (as.Date(Date) <= as.Date(paste(endYear, endMonth, endDay, sep = "-"))) {
   
   if(file.exists(file)) {
   
-    nc <- open.ncdf(file)
+    nc <- open.ncdf(file) # Open the file
     rasterName <- assign(rasterName, raster(
       get.var.ncdf(nc, merraVariable))) # extract the approraite variable from the file
-    close.ncdf(nc)
+    close.ncdf(nc) # close it so as to not overload the system
     rasterName <- flip(t(rasterName), direction = "y") # flip the data to correct for mistaken input with ncdf
     crs(rasterName) <- "+proj=longlat +datum=WGS84 +no_defs" # set the crs
     rasterName <- setExtent(rasterName, box) # set the extent as the ncdf doesn't pull the file's extent/crs
@@ -85,7 +85,7 @@ while (as.Date(Date) <= as.Date(paste(endYear, endMonth, endDay, sep = "-"))) {
     names <- c(names, rasterName)
   }
   
-  Date <- Date + 1 # Move to the next 16 day composite
+  Date <- Date + 1 # Move to the next day
 }
 
 merraBrick <- brick(names) # make a brick of the rasters
