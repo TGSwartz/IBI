@@ -1,5 +1,6 @@
 library(lubridate)
 library(raster)
+library(zoo)
 
 # Library of functions for converting rasters to a brick
 # doesn't work yet
@@ -95,10 +96,32 @@ ReprojectParam <- function(input, output, paramFile) {
   cat("\n")
   cat("\n")
   cat("DATUM = WGS84")
-  cat("\n")
-  cat("\n")
-  cat("UTM_ZONE = -35")
+  #cat("\n")
+  #cat("\n")
+  #cat("UTM_ZONE = -35")
   cat("\n") # This last one is important since it won't work properly 
             # without it
   sink()
 }
+
+# a function that calculates the correlation between moving averages for different lengths of window
+# the input functions are "independent": the variable over which to apply the moving function
+# "dependent": the output column, "startLength": the shortest window length, "endLength" the longest window length
+# "functionType": the function to apply (mean, sd, etc.)
+
+MovingAverageCorrelation <- function(indepedent, depedent, startLength, endLength, functionType) {
+  # declare an matrix for the different rolling functions and a correlation vector
+#   avgMat <- matrix(nrow = length(depedent), ncol = (endLength-startLength+1)) 
+#   corVector <- rep(NA, ncol(avgMat))
+#   # run the rollapply function over the data and calculate the corresponding correlations
+#   for (i in startLength:endLength) {
+#     avgMat[, i] <- rollapply(indepedent, width = i, FUN = functionType, 
+#                              na.rm = T, fill = NA, align = "right")
+#     corVector[i] <- cor(avgMat[, i], depedent, use = "complete.obs")
+#   }
+#   return(corVector)
+  out <- sapply(startLength:endLength, function(i) cor(rollapplyr(
+    indepedent, i, functionType, na.rm = TRUE, fill = NA), depedent, use = "complete.obs"))
+  return(out)
+}
+
