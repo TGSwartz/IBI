@@ -3,7 +3,7 @@ lapply(libraries, require, character.only = TRUE, quietly = TRUE)
 
 firstYear <- 2010
 firstMonth <- 1
-firstDay <- 9
+firstDay <- 1
 
 # read data and reset names and convert to time
 MulindiClean <- function(){
@@ -76,7 +76,7 @@ for(i in 1:nrow(mulindi)) {
 
 #mulindi <- merge(tamsat, mulindi, by  = "date", all.x = F, all.y = F)
 #mulindi$rainfall <- mulindi$meanRainfall
-mulindi <- mulindi[mulindi$tMin > 7, ] # remove anomalous observations
+#mulindi <- mulindi[mulindi$tMin > 7, ] # remove anomalous observations
 #mulindi <- aggregate(. ~ bimonthID, mulindi, FUN = mean)
 #mulindi$month <- as.factor(floor(mulindi$month)) # make months a factor and round them down (abritary, could be rounded up but needs to be rounded)
 bimonthEvi <- read.csv("/Users/Tom/Documents/IBI/mulindiBimonthEvi.csv", stringsAsFactors = F)
@@ -84,9 +84,6 @@ mulindi <- merge(mulindi, bimonthEvi)
 mulindi <- mulindi[order(mulindi$date), ]
 mulindi <- mulindi[,!(names(mulindi) %in% c("fileDate"))]
 #mulindi <- mulindi[,!(names(mulindi) %in% c("date"))]
-mulindi$tMinAvg <- rollapply(mulindi$tMin, width = which.max(tMinCor), mean, na.rm = T, fill = NA, align = "right") # average of 4 periods determined by correlation
-mulindi$rainfallAvg <- rollapply(rainDf$medianRainfall, width = which.max(medianCor), mean, na.rm = T, fill = NA, align = "right") # average of 4 periods determined by correlation# average of 4 periods determined by correlation
-mulindi$tMaxAvg <- rollapply(mulindi$tMax, width = which.max(tMaxCor), mean, na.rm = T, fill = NA, align = "right") # average of 4 periods determined by correlation # average of 2 periods determined by correlation
 mulindi$time <- seq(1, nrow(mulindi), by = 1)
 
 write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiDisaggData.csv")
@@ -100,9 +97,10 @@ write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiDisaggData.csv")
 # mulindi$month <- as.factor(floor(mulindi$month)) # make months a factor and round them down (abritary, could be rounded up but needs to be rounded)
 # write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiAggData.csv")
 
-trainCol <- c("yield", #"rainfall", "tMax", "tMin", 
-              "month", "evi","tMinAvg", 
-             "rainfallAvg", "tMaxAvg", "time", "year")
+mulindi$weekday <- weekdays(as.Date(mulindi$date))
+trainCol <- c("yield", "rainfall", "tMax", "tMin", 
+              "month", "evi",#"tMinAvg", "tMaxAvg", "rainfallAvg",
+               "time", "year", "weekday", "date")
 mulindiTrainDf <- subset(mulindi, select = trainCol)
 
 
