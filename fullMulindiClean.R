@@ -29,13 +29,12 @@ mulindi$date <- as.Date(mulindi$date, "%d/%m/%Y")
 # some of the years are coded in as 2 digit and some as 4.  
 # So this next line makes years under 2000 become four digit (ex: 10 -> 2010)
 
-year(mulindi$date) <- ifelse(mulindi$date < 2000, 2000 + 
+year(mulindi$date) <- ifelse(year(mulindi$date) < 2000, 2000 + 
                                year(mulindi$date), year(mulindi$date))
 
 # remove NA rows that are blanks between months in the csv
 
 mulindi <- mulindi[!is.na(mulindi$date), ]
-
 
 # factor month and year for regression purposes and create a weekday object
 # create a time (cumulative days) variable
@@ -43,7 +42,12 @@ mulindi <- mulindi[!is.na(mulindi$date), ]
 mulindi$month <- as.factor(month(mulindi$date))
 mulindi$year <- as.factor(year(mulindi$date))
 mulindi$weekday <- weekdays(as.Date(mulindi$date))
+mulindi$week <- as.factor(week(mulindi$date))
 mulindi$time <- seq(1, nrow(mulindi), by = 1)
+
+# Make the yield variable centered and scaled
+
+mulindi$yield <- scale(mulindi$yield, center = T, scale = T)
 
 # make date a date object
 
@@ -86,13 +90,13 @@ wd <- "/Users/Tom/Documents/IBI/"
 
 # load the different merra products
 
-merraGrn <- read.csv(paste(wd, "merra_grn.csv", sep = ""))
-merraRzmc <- read.csv(paste(wd, "merra_rzmc.csv", sep = ""))
-merraPrmc <- read.csv(paste(wd, "merra_prmc.csv", sep = ""))
-merraGwettop <- read.csv(paste(wd, "merra_gwettop.csv", sep = ""))
-merraLai <- read.csv(paste(wd, "merra_lai.csv", sep = ""))
-merraTsurf <- read.csv(paste(wd, "merra_tsurf.csv", sep = ""))
-merraSfmc <- read.csv(paste(wd, "merra_sfmc.csv", sep = ""))
+merraGrn <- read.csv(paste(wd, "mulindiMerra_grn.csv", sep = ""))
+merraRzmc <- read.csv(paste(wd, "mulindiMerra_rzmc.csv", sep = ""))
+merraPrmc <- read.csv(paste(wd, "mulindiMerra_prmc.csv", sep = ""))
+merraGwettop <- read.csv(paste(wd, "mulindiMerra_gwettop.csv", sep = ""))
+merraLai <- read.csv(paste(wd, "mulindiMerra_lai.csv", sep = ""))
+merraTsurf <- read.csv(paste(wd, "mulindiMerra_tsurf.csv", sep = ""))
+merraSfmc <- read.csv(paste(wd, "mulindiMerra_sfmc.csv", sep = ""))
 
 # merge all the files to a dataframe for analysis
 # suppress warnings that the file names are duplicated (irrelevant)
@@ -115,32 +119,8 @@ merra <- subset(merra, select = keepCol)
 
 # change date type for merging
 
-merra$date <- as.Date(merra$date) #
+merra$date <- as.Date(merra$date) 
 merra <- merge(mulindi, merra, by = "date")
-
-# create moving average variables for MERRA at point of maximum correlation with yield
-
-mulindi$merraRzmc <- merra$rzmc
-mulindi$merraRzmcAvg <- rollapply(merra$rzmc, width = which.max(MovingAverageCorrelation(merra$rzmc, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
-mulindi$merraPrmc <- merra$prmc
-mulindi$merraPrmcAvg <- rollapply(merra$prmc, width = which.max(MovingAverageCorrelation(merra$prmc, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
-mulindi$merraSfmc <- merra$sfmc
-mulindi$merraSfmcAvg <- rollapply(merra$sfmc, width = which.max(MovingAverageCorrelation(merra$sfmc, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
-mulindi$merraGrn <- merra$grn
-mulindi$merraGrnAvg <- rollapply(merra$grn, width = which.max(MovingAverageCorrelation(merra$grn, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
-mulindi$merraLai <- merra$lai
-mulindi$merraLaiAvg <- rollapply(merra$lai, width = which.max(MovingAverageCorrelation(merra$lai, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
-mulindi$merraTsurf <- merra$tsurf
-mulindi$merraTsurfAvg <- rollapply(merra$tsurf, width = which.max(MovingAverageCorrelation(merra$tsurf, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
-mulindi$merraGwettop <- merra$gwettop
-mulindi$merraGwettopAvg <- rollapply(merra$gwettop, width = which.max(MovingAverageCorrelation(merra$gwettop, merra$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right")
-
 
 # load the different datasets and keep rainfall estimates, dates (for merging), and 
 # recorded yield for correlation analysis
@@ -169,14 +149,52 @@ avgCol <- c("tamsatRainfall", "chirpsRainfall", "arcRainfall")
 rainDf$medianRainfall <- rowMedians(as.matrix(rainDf[, avgCol]))
 rainDf$meanRainfall <- rowMeans(rainDf[, avgCol])
 
+
+# create data.frame that contains the max of the correlations for each MERRA variable
+
+maxCorDf <- data.frame(rzmc = which.max(MovingAverageCorrelation(merra$rzmc, merra$yield, 1, 100, "mean")),
+                          prmc = which.max(MovingAverageCorrelation(merra$prmc, merra$yield, 1, 100, "mean")), 
+                          sfmc = which.max(MovingAverageCorrelation(merra$sfmc, merra$yield, 1, 100, "mean")),
+                          grn = which.max(MovingAverageCorrelation(merra$grn, merra$yield, 1, 100, "mean")), 
+                          lai = which.max(MovingAverageCorrelation(merra$lai, merra$yield, 1, 100, "mean")), 
+                          tsurf = which.max(MovingAverageCorrelation(merra$tsurf, merra$yield, 1, 100, "mean")), 
+                          gwettop = which.max(MovingAverageCorrelation(merra$gwettop, merra$yield, 1, 100, "mean")),
+                          medianRainfall = which.max(MovingAverageCorrelation(rainDf$medianRainfall, mulindi$yield, 1, 100, "mean")),
+                          medianRainfallSD = which.max(MovingAverageCorrelation(rainDf$medianRainfall, mulindi$yield, 2, 100, sd)))
+save(maxCorDf, file = "/Users/Tom/Documents/IBI/mulindiMaxCorDf.RData")
+
+# create moving average variables for MERRA at point of maximum correlation with yield
+
+mulindi$merraRzmc <- merra$rzmc
+mulindi$merraRzmcAvg <- rollapply(merra$rzmc, width = maxCorDf$rzmc, mean, na.rm = T, fill = NA, align = "right")
+
+mulindi$merraPrmc <- merra$prmc
+mulindi$merraPrmcAvg <- rollapply(merra$prmc, width = maxCorDf$prmc, mean, na.rm = T, fill = NA, align = "right")
+
+mulindi$merraSfmc <- merra$sfmc
+mulindi$merraSfmcAvg <- rollapply(merra$sfmc, width = maxCorDf$sfmc, mean, na.rm = T, fill = NA, align = "right")
+
+mulindi$merraGrn <- merra$grn
+mulindi$merraGrnAvg <- rollapply(merra$grn, width = maxCorDf$grn, mean, na.rm = T, fill = NA, align = "right")
+
+mulindi$merraLai <- merra$lai
+mulindi$merraLaiAvg <- rollapply(merra$lai, width = maxCorDf$lai, mean, na.rm = T, fill = NA, align = "right")
+
+mulindi$merraTsurf <- merra$tsurf
+mulindi$merraTsurfAvg <- rollapply(merra$tsurf, width = maxCorDf$tsurf, mean, na.rm = T, fill = NA, align = "right")
+
+mulindi$merraGwettop <- merra$gwettop
+mulindi$merraGwettopAvg <- rollapply(merra$gwettop, width = maxCorDf$gwettop, mean, na.rm = T, fill = NA, align = "right")
+
+
 # create moving average variables at point of maximum correlation
 
 mulindi$tMinAvg <- rollapply(mulindi$tMin, width = which.max(MovingAverageCorrelation(mulindi$tMin, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
 mulindi$tMaxAvg <- rollapply(mulindi$tMax, width = which.max(MovingAverageCorrelation(mulindi$tMax, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
 
 mulindi$medianRainfall <- rainDf$medianRainfall
-mulindi$medianRainfallAvg <- rollapply(rainDf$medianRainfall, width = which.max(MovingAverageCorrelation(rainDf$medianRainfall, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
-mulindi$medianRainfallSD <- rollapply(rainDf$medianRainfall, width = which.max(MovingAverageCorrelation(rainDf$medianRainfall, mulindi$yield, 2, 100, sd)), sd, na.rm = T, fill = NA, align = "right")
+mulindi$medianRainfallAvg <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfall, mean, na.rm = T, fill = NA, align = "right") 
+mulindi$medianRainfallSD <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfallSD, sd, na.rm = T, fill = NA, align = "right")
 
 # rearrange columns
 
@@ -198,9 +216,13 @@ mulindiMth <- aggregate(. ~ month + year, data = subset(mulindi, select = -c(wee
 #mulindiMth <- mulindiMth[with(mulindiMth, order(year, month)), ]
 write.csv(mulindiMth, "/Users/Tom/Documents/IBI/mulindiMonthAgg.csv", row.names = F)
 
+# remove time variables that shouldn't be used for regressions
+
+#mulindi <- subset(mulindi, select = -c(date, cumulativeDays, year))
+
 # seperate out variables that are available with using the plantation data only
 
-plantCol <- c("yield", "date", "year", "month", "weekday", "tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall")
+plantCol <- c("yield", "month", "weekday", "tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall")
 plantDta <- subset(mulindi, select = plantCol)
 
 # drop the plantation data variables for satellite only analysis (keeping yield of course)

@@ -13,6 +13,8 @@ endYear <- 2015
 endMonth <- 5 #5
 endDay <- 31 #31
 
+# set points data to pull approriate cells near Mulindi (or other plantation if desired)
+
 points <- read.csv("/Users/Tom/Documents/IBI/plantationLoc.csv")
 points <- subset(points, select = c(plantationName, longitude, latitude))
 points <- SpatialPointsDataFrame(subset(points, select = c(longitude, latitude)), points)
@@ -65,7 +67,7 @@ while (as.Date(Date) <= as.Date(paste(endYear, endMonth, endDay, sep = "-"))) {
     names <- c(names, rasterName)
   }
   
-  Date <- Date + 1 # Move to the next 16 day composite
+  Date <- Date + 1 # Move to the next day
 }
 
 arcBrick <- brick(names) # make a brick of the rasters

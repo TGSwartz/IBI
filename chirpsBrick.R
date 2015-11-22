@@ -1,17 +1,20 @@
 source("/Users/Tom/Github/IBI/geoFunctions.R")
 
-wd <- "/Users/Tom/Documents/IBI/chirps/downloads/"
+wd <- "/Volumes/Tom Passport/chirps/"
 
 
 # set first date and end of files to load
 
 firstYear <- year <- 2010
 firstMonth <- month <- 1
-firstDay <- day <- 9
+firstDay <- day <- 1
 
-endYear <- 2014
-endMonth <- 12 #5
+endYear <- 2015
+endMonth <- 5 #5
 endDay <- 31 #31
+
+# set points data to pull approriate cells near Mulindi (or other plantation if desired)
+
 
 points <- read.csv("/Users/Tom/Documents/IBI/plantationLoc.csv")
 points <- subset(points, select = c(plantationName, longitude, latitude))
@@ -57,11 +60,12 @@ while (as.Date(Date) <= as.Date(paste(endYear, endMonth, endDay, sep = "-"))) {
     names <- c(names, rasterName)
   }
   
-  Date <- Date + 1 # Move to the next 16 day composite
+  Date <- Date + 1 # Move to the next day
 }
 
 chirpsBrick <- brick(names) # make a brick of the rasters
-chirps <- data.frame(dates = seq.Date(as.Date("2010/01/09"), as.Date("2014/12/31"), by = 1),
+chirps <- data.frame(date = seq.Date(as.Date(paste(firstYear, as.character(firstMonth), as.character(firstDay), sep = "-")), 
+                                     as.Date(paste(endYear, as.character(endMonth), as.character(endDay), sep = "-")), by = 1),
                          rain = rep(NA, length(names)),
                          fileDate = rep(NA, length(names))) #make an evi  
 for (i in 1:nlayers(chirpsBrick)) {
@@ -71,3 +75,5 @@ for (i in 1:nlayers(chirpsBrick)) {
   chirps[i, ]$rain <- mean(extract(chirpsBrick[[i]],extent(chirpsBrick[[i]]) ), na.rm = T)
   chirps[i, ]$fileDate <- names(chirpsBrick[[i]])
 }
+
+write.csv(chirps, "/Users/Tom/Documents/IBI/chirps.csv", row.names = F)

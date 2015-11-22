@@ -2,6 +2,19 @@ source("/Users/Tom/Github/IBI/geoFunctions.R")
 
 wd <- "/Users/Tom/Documents/IBI/evi/"
 
+
+# set first date and end of files to load
+
+firstYear <- year <- 2010
+firstMonth <- month <- 01
+firstDay <- day <- 09
+
+endYear <- 2015
+endMonth <- 05 #05
+endDay <- 31 #31
+
+# reads in plantation locations to make a mulindi bounding box
+
 points <- read.csv("/Users/Tom/Documents/IBI/plantationLoc.csv")
 points <- subset(points, select = c(plantationName, longitude, latitude))
 points <- SpatialPointsDataFrame(subset(points, select = c(longitude, latitude)), points)
@@ -10,15 +23,10 @@ crs(points) <- "+proj=longlat +datum=WGS84 +no_defs"
 points <- spTransform(points, "+proj=utm +zone=36 +south +datum=WGS84 +units=m 
                       +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
-# set first date and end of files to load
 
-firstYear <- year <- 2010
-firstMonth <- month <- 1
-firstDay <- day <- 9
 
-endYear <- 2015
-endMonth <- 5 #05
-endDay <- 31 #31
+#coverType <- raster("/Users/Tom/Documents/IBI/servir-rwanda_landcover_2010_scheme_i.tif")
+#coverType[coverType != 3] <- NA
 
 Date <- as.Date(paste(year, as.character(month), as.character(day), sep = "-"))
 
@@ -46,14 +54,17 @@ while (as.Date(Date) < as.Date(paste(endYear, endMonth, endDay, sep = "-"))) {
     #crs(rasterName) <- "+proj=longlat +datum=WGS84 +no_defs" #"+proj=utm +zone=36 + south ellps=WGS84"
     rasterName <- ViAdjust(rasterName)
     rasterName <- crop(rasterName, 
-                       MeterPointExtent(subset(points, plantationName == "Mulindi"), 15000))
+                       MeterPointExtent(subset(points, plantationName == "Mulindi"), 10000))
+    print(file) # print names to check progress
+    #coverType <- projectRaster(coverType, rasterName)
+    #rasterName <- mask(rasterName, coverType)
     #rasterName <- crop(rasterName, DegreePointExtent("/Users/Tom/Documents/IBI/plantationLoc.csv", 
     #                                               "plantationName", "Mulindi", .05))  
   }
   else {
     break
   }
-  print(file) # print names to check progress
+  
   # make a vector of raster Names
   
   if (as.numeric(year) == firstYear & as.numeric(month) == firstMonth & 

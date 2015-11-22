@@ -1,6 +1,7 @@
 library(lubridate)
 library(raster)
 library(zoo)
+library(rgdal)
 
 # Library of functions for converting rasters to a brick
 # doesn't work yet
