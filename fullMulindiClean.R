@@ -7,7 +7,7 @@
 
 source('~/Github/IBI/geoFunctions.R')
 
-libraries <- c("data.table", "xts", "lubridate", "TTR", "plyr", "caTools", "matrixStats")
+libraries <- c("data.table", "xts", "lubridate", "TTR", "plyr", "caTools", "matrixStats", "chron")
 lapply(libraries, require, character.only = TRUE)
 
 # set the first date of analysis
@@ -41,13 +41,14 @@ mulindi <- mulindi[!is.na(mulindi$date), ]
 
 mulindi$month <- as.factor(month(mulindi$date))
 mulindi$year <- as.factor(year(mulindi$date))
-mulindi$weekday <- weekdays(as.Date(mulindi$date))
+mulindi$weekday <- as.factor(weekdays(as.Date(mulindi$date)))
 mulindi$week <- as.factor(week(mulindi$date))
 mulindi$time <- seq(1, nrow(mulindi), by = 1)
+#mulindi$weekend <- is.weekend(mulindi$date)
 
 # Make the yield variable centered and scaled
 
-mulindi$yield <- scale(mulindi$yield, center = T, scale = T)
+mulindi$yield <- as.numeric(scale(mulindi$yield, center = T, scale = T))
 
 # make date a date object
 
@@ -187,7 +188,7 @@ mulindi$merraGwettop <- merra$gwettop
 mulindi$merraGwettopAvg <- rollapply(merra$gwettop, width = maxCorDf$gwettop, mean, na.rm = T, fill = NA, align = "right")
 
 
-# create moving average variables at point of maximum correlation
+# create moving average variables at point of maximum correlation for rainfall
 
 mulindi$tMinAvg <- rollapply(mulindi$tMin, width = which.max(MovingAverageCorrelation(mulindi$tMin, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
 mulindi$tMaxAvg <- rollapply(mulindi$tMax, width = which.max(MovingAverageCorrelation(mulindi$tMax, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
@@ -196,36 +197,72 @@ mulindi$medianRainfall <- rainDf$medianRainfall
 mulindi$medianRainfallAvg <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfall, mean, na.rm = T, fill = NA, align = "right") 
 mulindi$medianRainfallSD <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfallSD, sd, na.rm = T, fill = NA, align = "right")
 
+merra$medianRainfall <- rainDf$medianRainfall
+
+for (i in 1:(ncol(maxCorDf)-1)) {
+  for (j in seq(from = .25, to = 1.5, by = .25)) {
+    if (j != 1) {
+      #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, fill = NA, align = "right")
+      #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
+      varName <- paste(names(maxCorDf[i]), j, sep = "_")
+      #print(varName)
+      mulindi[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = floor((maxCorDf[i]*j)), mean, na.rm = T, fill = NA, align = "right")
+    }
+  }
+}
+
 # rearrange columns
 
 mulindi <- rename(mulindi, replace = c("time" = "cumulativeDays", "medianRainfall" = "medianSatRainfall", "medianRainfallAvg" = "medianSatRainfallAvg", "medianRainfallSD"  = "medianSatRainfallSD"))
-colOrder <- c("cumulativeDays", "date", "year", "month", "weekday", "yield", "tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall",
-              "evi",  "medianSatRainfall", "medianSatRainfallAvg", "medianSatRainfallSD", "merraRzmc", "merraRzmcAvg", "merraPrmc", "merraPrmcAvg", "merraSfmc", "merraSfmcAvg",
-              "merraGrn", "merraGrnAvg", "merraLai", "merraLaiAvg", "merraTsurf", #"merraTsurfAvg", 
-              "merraGwettop",
-              "merraGwettopAvg")
-mulindi <- mulindi[colOrder]
+# colOrder <- c("cumulativeDays", "date", "year", "month", "weekday", "week", "yield", "tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall",
+#              "evi",  "medianSatRainfall", "medianSatRainfallAvg", "medianSatRainfallSD", "merraRzmc", "merraRzmcAvg", "merraPrmc", "merraPrmcAvg", "merraSfmc", "merraSfmcAvg",
+#              "merraGrn", "merraGrnAvg", "merraLai", "merraLaiAvg", "merraTsurf", "merraTsurfAvg", 
+#              "merraGwettop",
+#              "merraGwettopAvg") #"weekend")
+# mulindi <- mulindi[colOrder]
 
-# write csv for mulindi data
+# remove tsurf avg as it's large number of NAs remove a lot of potential observations with little predictive gain
 
-write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiFullData.csv", row.names = F)
+mulindi <- subset(mulindi, select = -c(merraTsurfAvg))
 
-# aggregate and write a csv for data aggregated at the monthly level
+# aggregate data for monthly and weekly levels
 
-mulindiMth <- aggregate(. ~ month + year, data = subset(mulindi, select = -c(weekday, date, cumulativeDays)), FUN = mean, na.action = na.omit )
-#mulindiMth <- mulindiMth[with(mulindiMth, order(year, month)), ]
-write.csv(mulindiMth, "/Users/Tom/Documents/IBI/mulindiMonthAgg.csv", row.names = F)
-
-# remove time variables that shouldn't be used for regressions
-
-#mulindi <- subset(mulindi, select = -c(date, cumulativeDays, year))
+mulindiMonth <- aggregate(. ~ month + year, data = subset(mulindi, select = -c(weekday, date, cumulativeDays)), FUN = mean, na.rm = T, na.action = NULL )
+mulindiWeek <- aggregate(. ~ week + year, data = subset(mulindi, select = -c(weekday, date, cumulativeDays)), FUN = mean, na.rm = T, na.action = NULL )
 
 # seperate out variables that are available with using the plantation data only
 
-plantCol <- c("yield", "month", "weekday", "tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall")
+plantCol <- c("yield", "month", "weekday", "week", "tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall")
 plantDta <- subset(mulindi, select = plantCol)
 
 # drop the plantation data variables for satellite only analysis (keeping yield of course)
 
 satDropCol <- c("tMax", "tMaxAvg", "tMin", "tMinAvg", "plantationRainfall")
 satDta <- subset(mulindi, select = -c(tMax, tMaxAvg, tMin, tMinAvg, plantationRainfall))
+
+satWeekDta <- aggregate(. ~ week + year, data = subset(satDta, select = -c(weekday, date, cumulativeDays)), FUN = mean, na.rm = T, na.action = NULL )
+satMonthDta <- aggregate(. ~ month + year, data = subset(satDta, select = -c(weekday, date, cumulativeDays)), FUN = mean, na.rm = T, na.action = NULL )
+
+# remove time variables that shouldn't be used for regressions or are irrevalent due to aggregation
+
+mulindi <- subset(mulindi, select = -c(date, cumulativeDays, year))
+mulindiMonth <- subset(mulindiMonth, select = -c(year, week))
+mulindiWeek <- subset(mulindiWeek, select = -c(year))
+
+satDta <- subset(satDta, select = -c(cumulativeDays, date, year))
+
+satWeekDta <- subset(satWeekDta, select = -c(year))
+satMonthDta <- subset(satMonthDta, select = -c(year, week))
+
+# make round down month for weekly aggregate so that it is even months rather than fractions
+
+mulindiWeek$month <- as.factor(floor(mulindiWeek$month))
+satWeekDta$month <- as.factor(floor(satWeekDta$month))
+
+# write csv's for mulindi data
+
+write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiFullData.csv", row.names = F)
+write.csv(mulindiMonth, "/Users/Tom/Documents/IBI/mulindiMonthAgg.csv", row.names = F)
+write.csv(mulindiWeek, "/Users/Tom/Documents/IBI/mulindiWeekAgg.csv", row.names = F)
+write.csv(plantDta, "/Users/Tom/Documents/IBI/mulindiPlantData.csv")
+write.csv(satDta, "/Users/Tom/Documents/IBI/mulindiSatData.csv")
