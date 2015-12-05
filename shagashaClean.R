@@ -40,7 +40,7 @@ shagasha <- merge(shagasha, data.frame(date =
 
 shagasha$month <- as.factor(month(shagasha$date))
 shagasha$year <- as.factor(year(shagasha$date))
-shagasha$weekday <- weekdays(as.Date(shagasha$date))
+shagasha$weekday <- as.factor(weekdays(as.Date(shagasha$date)))
 shagasha$week <- as.factor(week(shagasha$date))
 
 # replace non-numeric valeus as zero
@@ -59,7 +59,7 @@ suppressWarnings(shagasha$yield <- as.numeric(gsub(",", "", shagasha$yield)))
 
 # scale and center the yield estimates
 
-shagasha$yield <- scale(shagasha$yield, center = T, scale = T)
+shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
 
 # create evi bimonthly ID for merging
 # then merge with shagasha EVI file
@@ -176,6 +176,20 @@ shagasha$medianSatRainfall <- rainDf$medianRainfall
 shagasha$medianSatRainfallAvg <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfall, mean, na.rm = T, fill = NA, align = "right")
 shagasha$medianSatRainfallSD <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfallSD, sd, na.rm = T, fill = NA, align = "right")
 
+# aggregate data for monthly and weekly levels
+
+shagashaMonth <- aggregate(. ~ month + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
+shagashaWeek <- aggregate(. ~ week + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
+
+# make round down month for weekly aggregate so that it is even months rather than fractions
+
+shagashaWeek$month <- as.factor(floor(shagashaWeek$month))
+
+# remove time variables that shouldn't be used for regressions
+
+shagasha <- subset(shagasha, select = -c(date, year, bimonthID))
+shagashaMonth <- subset(shagashaMonth, select = -c(year, bimonthID, week))
+shagashaWeek <- subset(shagashaWeek, select = -c(year, bimonthID))
 
 
 
