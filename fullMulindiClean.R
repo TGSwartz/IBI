@@ -167,49 +167,54 @@ save(maxCorDf, file = "/Users/Tom/Documents/IBI/mulindiMaxCorDf.RData")
 # create moving average variables for MERRA at point of maximum correlation with yield
 
 mulindi$merraRzmc <- merra$rzmc
-mulindi$merraRzmcAvg <- rollapply(merra$rzmc, width = maxCorDf$rzmc, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraRzmcAvg <- rollapply(merra$rzmc, width = maxCorDf$rzmc, mean, na.rm = T, partial = T, align = "right")
 
 mulindi$merraPrmc <- merra$prmc
-mulindi$merraPrmcAvg <- rollapply(merra$prmc, width = maxCorDf$prmc, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraPrmcAvg <- rollapply(merra$prmc, width = maxCorDf$prmc, mean, na.rm = T, partial = T, align = "right")
 
 mulindi$merraSfmc <- merra$sfmc
-mulindi$merraSfmcAvg <- rollapply(merra$sfmc, width = maxCorDf$sfmc, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraSfmcAvg <- rollapply(merra$sfmc, width = maxCorDf$sfmc, mean, na.rm = T, partial = T, align = "right")
 
 mulindi$merraGrn <- merra$grn
-mulindi$merraGrnAvg <- rollapply(merra$grn, width = maxCorDf$grn, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraGrnAvg <- rollapply(merra$grn, width = maxCorDf$grn, mean, na.rm = T, partial = T, align = "right")
 
 mulindi$merraLai <- merra$lai
-mulindi$merraLaiAvg <- rollapply(merra$lai, width = maxCorDf$lai, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraLaiAvg <- rollapply(merra$lai, width = maxCorDf$lai, mean, na.rm = T, partial = T, align = "right")
 
 mulindi$merraTsurf <- merra$tsurf
-mulindi$merraTsurfAvg <- rollapply(merra$tsurf, width = maxCorDf$tsurf, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraTsurfAvg <- rollapply(merra$tsurf, width = maxCorDf$tsurf, mean, na.rm = T, partial = T, align = "right")
 
 mulindi$merraGwettop <- merra$gwettop
-mulindi$merraGwettopAvg <- rollapply(merra$gwettop, width = maxCorDf$gwettop, mean, na.rm = T, fill = NA, align = "right")
+mulindi$merraGwettopAvg <- rollapply(merra$gwettop, width = maxCorDf$gwettop, mean, na.rm = T, partial = T, align = "right")
 
 
 # create moving average variables at point of maximum correlation for rainfall
 
-mulindi$tMinAvg <- rollapply(mulindi$tMin, width = which.max(MovingAverageCorrelation(mulindi$tMin, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
-mulindi$tMaxAvg <- rollapply(mulindi$tMax, width = which.max(MovingAverageCorrelation(mulindi$tMax, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, fill = NA, align = "right") 
+mulindi$tMinAvg <- rollapply(mulindi$tMin, width = which.max(MovingAverageCorrelation(mulindi$tMin, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, partial = T, align = "right") 
+mulindi$tMaxAvg <- rollapply(mulindi$tMax, width = which.max(MovingAverageCorrelation(mulindi$tMax, mulindi$yield, 1, 100, "mean")), mean, na.rm = T, partial = T, align = "right") 
 
 mulindi$medianRainfall <- rainDf$medianRainfall
-mulindi$medianRainfallAvg <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfall, mean, na.rm = T, fill = NA, align = "right") 
-mulindi$medianRainfallSD <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfallSD, sd, na.rm = T, fill = NA, align = "right")
+mulindi$medianRainfallAvg <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfall, mean, na.rm = T, partial = T, align = "right") 
+mulindi$medianRainfallSD <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfallSD, sd, na.rm = T, partial = T, align = "right")
 
 merra$medianRainfall <- rainDf$medianRainfall
 
-for (i in 1:(ncol(maxCorDf)-1)) {
-  for (j in seq(from = .25, to = 1.5, by = .25)) {
-    if (j != 1) {
-      #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, fill = NA, align = "right")
-      #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
-      varName <- paste(names(maxCorDf[i]), j, sep = "_")
-      #print(varName)
-      mulindi[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = floor((maxCorDf[i]*j)), mean, na.rm = T, fill = NA, align = "right")
-    }
-  }
-}
+# for (i in 1:(ncol(maxCorDf)-1)) {
+#   for (j in seq(from = .25, to = 1.5, by = .25)) {
+#     if (j != 1) {
+#       #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, partial = T, align = "right")
+#       #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
+#       varName <- paste(names(maxCorDf[i]), j, sep = "_")
+#       #print(varName)
+#       #mulindi[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = as.numeric(ceiling((maxCorDf[i]*j))), FUN = "mean", na.rm = T, partial = T, align = "right")
+#       mulindi[,varName] <- Lag(merra[, names(maxCorDf[i])], shift = as.numeric(ceiling((maxCorDf[i]*j))))
+#       #mulindi <- slide(data = mulindi, Var = paste("merra", names(maxCorDf[i]), sep =)))
+#       
+#     }
+#   } 
+# }
+
+mulindi <- subset(mulindi, select = -c(bimonthID))
 
 # rearrange columns
 
@@ -260,6 +265,8 @@ mulindiWeek$month <- as.factor(floor(mulindiWeek$month))
 satWeekDta$month <- as.factor(floor(satWeekDta$month))
 
 # write csv's for mulindi data
+
+
 
 write.csv(mulindi, "/Users/Tom/Documents/IBI/mulindiFullData.csv", row.names = F)
 write.csv(mulindiMonth, "/Users/Tom/Documents/IBI/mulindiMonthAgg.csv", row.names = F)
