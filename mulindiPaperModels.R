@@ -2,9 +2,19 @@ library(caret)
 library(doMC)
 registerDoMC(2)
 
+#mulindi <- subset(mulindi, select = -c(week))
+#satDta <- subset(satDta, select = -c(week))
+
+timeOnlyCol <- c("month", "weekday", "week", "yield")
+timeOnlyDta <- subset(mulindi, select = timeOnlyCol)
+
+mulindi <- subset(mulindi, select = -c(week))
+satDta <- subset(satDta, select = -c(week))
+plantDta <- subset(plantDta, select = -c(week))
+
 #mulindi <- subset(mulindi, select = -c(cumulativeDays))
 
-#trainControl <- trainControl(method = "repeatedcv", number = 5, repeats = 10)
+#trainControl <- trainControl(method = "repeatedcv", number = 10, repeats = 10, returnResamp = "final")
 trainControl <- trainControl(method = "cv", number = 10, returnResamp = "final")
 set.seed(1)
 fullRFFit <- train(yield ~ ., data = mulindi, method = "rf", 
@@ -70,22 +80,19 @@ satCompCaseLMFit <- train(yield ~ ., data = satDta[complete.cases(plantDta), ], 
                   trControl = trainControl, metric = "Rsquared")
 print(satCompCaseLMFit)
 
-
-timeOnlyCol <- c("month", "weekday", "week", "yield")
-
 set.seed(1)
-fullTimeOnlyRFFit <- train(yield ~ ., data = subset(mulindi, select = timeOnlyCol), method = "rf", 
+fullTimeOnlyRFFit <- train(yield ~ ., data = timeOnlyDta, method = "rf", 
                    trControl = trainControl, tuneLength = 10, metric = "Rsquared", ntree = 1000)
 print(fullTimeOnlyRFFit)
 
 set.seed(1)
-fullTimeOnlyGLMFit <- train(yield ~ ., data = subset(mulindi, select = timeOnlyCol), method = "glmnet", 
+fullTimeOnlyGLMFit <- train(yield ~ ., data = timeOnlyDta, method = "glmnet", 
                     trControl = trainControl, tuneLength = 10, 
                     preProcess = c("center", "scale"), metric = "Rsquared")
 print(fullTimeOnlyGLMFit)
 
 set.seed(1)
-fullTimeOnlyLMFit <- train(yield ~ ., data = subset(mulindi, select = timeOnlyCol), method = "glm", 
+fullTimeOnlyLMFit <- train(yield ~ ., data = timeOnlyDta, method = "glm", 
                    trControl = trainControl, metric = "Rsquared")
 print(fullTimeOnlyLMFit)
 
