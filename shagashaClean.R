@@ -43,7 +43,7 @@ shagasha$year <- as.factor(year(shagasha$date))
 shagasha$weekday <- as.factor(weekdays(as.Date(shagasha$date)))
 shagasha$week <- as.factor(week(shagasha$date))
 
-# replace non-numeric valeus as zero
+# replace non-numeric valeus as 0
 
 shagasha[!is.na(shagasha$plantationRainfall) & shagasha$plantationRainfall == "NT", ]$plantationRainfall <- NA
 shagasha[!is.na(shagasha$yield) & shagasha$yield == " -   ", ]$yield <- NA
@@ -59,7 +59,19 @@ suppressWarnings(shagasha$yield <- as.numeric(gsub(",", "", shagasha$yield)))
 
 # scale and center the yield estimates
 
-shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
+if (shagIncomeTrue == F) {
+  shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
+}
+if (shagIncomeTrue == T) {
+  shagasha$yield <- as.numeric(shagasha$yield/1580)
+}
+
+#shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
+#shagasha$yield <- as.numeric(shagasha$yield/1580)
+
+# make date a date object
+
+date <- as.Date(paste(firstYear, firstMonth, as.character(firstDay), sep = "-")) 
 
 # create evi bimonthly ID for merging
 # then merge with shagasha EVI file
@@ -136,17 +148,6 @@ shagasha$merraGwettop <- merra$gwettop
 # load max correlations from Mulindi
 # create MERRA rolling averages based off the max correlations from Mulindi
 
-load("/Users/Tom/Documents/IBI/mulindiMaxCorDf.RData")
-
-shagasha$merraRzmcAvg <- rollapply(merra$rzmc, width = maxCorDf$rzmc, mean, na.rm = T, fill = NA, align = "right")
-shagasha$merraPrmcAvg <- rollapply(merra$prmc, width = maxCorDf$prmc, mean, na.rm = T, fill = NA, align = "right")
-shagasha$merraSfmcAvg <- rollapply(merra$sfmc, width = maxCorDf$sfmc, mean, na.rm = T, fill = NA, align = "right")
-shagasha$merraGrnAvg <- rollapply(merra$grn, width = maxCorDf$grn, mean, na.rm = T, fill = NA, align = "right")
-shagasha$merraLaiAvg <- rollapply(merra$lai, width = maxCorDf$lai, mean, na.rm = T, fill = NA, align = "right")
-shagasha$merraTsurfAvg <- rollapply(merra$tsurf, width = maxCorDf$tsurf, mean, na.rm = T, fill = NA, align = "right")
-shagasha$merraGwettopAvg <- rollapply(merra$gwettop, width = maxCorDf$gwettop, mean, na.rm = T, fill = NA, align = "right")
-
-
 # load satellite rainfall products and format
 
 tamsat <- read.csv("/Users/Tom/Documents/IBI/shagasha/shagashaTamsat.csv")
@@ -171,28 +172,54 @@ rainDf <- merge(merge(merge(shagasha, tamsat, by = "date", all.x = T, all.y = F)
 avgCol <- c("tamsatRainfall", "chirpsRainfall", "arcRainfall")
 rainDf$medianRainfall <- rowMedians(as.matrix(rainDf[, avgCol]))
 
+
+#load("/Users/Tom/Documents/IBI/mulindiMaxCorDf.RData")
+
+maxCorDf <- data.frame(rzmc = which.max(abs(MovingAverageCorrelation(merra$rzmc, merra$yield, 1, 100, "mean"))),
+                       prmc = which.max(abs(MovingAverageCorrelation(merra$prmc, merra$yield, 1, 100, "mean"))), 
+                       sfmc = which.max(abs(MovingAverageCorrelation(merra$sfmc, merra$yield, 1, 100, "mean"))),
+                       grn = which.max(abs(MovingAverageCorrelation(merra$grn, merra$yield, 1, 100, "mean"))), 
+                       lai = which.max(abs(MovingAverageCorrelation(merra$lai, merra$yield, 1, 100, "mean"))), 
+                       tsurf = which.max(abs(MovingAverageCorrelation(merra$tsurf, merra$yield, 1, 100, "mean"))), 
+                       gwettop = which.max(abs(MovingAverageCorrelation(merra$gwettop, merra$yield, 1, 100, "mean"))),
+                       medianRainfall = which.max(abs(MovingAverageCorrelation(rainDf$medianRainfall, merra$yield, 1, 100, "mean"))),
+                       medianRainfallSD = which.max(abs(MovingAverageCorrelation(rainDf$medianRainfall, merra$yield, 2, 100, sd))))
+
+shagasha$merraRzmcAvg <- rollapply(merra$rzmc, width = as.numeric(maxCorDf$rzmc), mean, na.rm = T, fill = NA, align = "right")
+shagasha$merraPrmcAvg <- rollapply(merra$prmc, width = as.numeric(maxCorDf$prmc), mean, na.rm = T, fill = NA, align = "right")
+shagasha$merraSfmcAvg <- rollapply(merra$sfmc, width = as.numeric(maxCorDf$sfmc), mean, na.rm = T, fill = NA, align = "right")
+shagasha$merraGrnAvg <- rollapply(merra$grn, width = as.numeric(maxCorDf$grn), mean, na.rm = T, fill = NA, align = "right")
+shagasha$merraLaiAvg <- rollapply(merra$lai, width = as.numeric(maxCorDf$lai), mean, na.rm = T, fill = NA, align = "right")
+shagasha$merraTsurfAvg <- rollapply(merra$tsurf, width = as.numeric(maxCorDf$tsurf), mean, na.rm = T, fill = NA, align = "right")
+shagasha$merraGwettopAvg <- rollapply(merra$gwettop, width = as.numeric(maxCorDf$gwettop), mean, na.rm = T, fill = NA, align = "right")
+
 # merge the median into the shagasha dataframe and create rolling averages for the products
 
 shagasha$medianSatRainfall <- rainDf$medianRainfall
-shagasha$medianSatRainfallAvg <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfall, mean, na.rm = T, fill = NA, align = "right")
-shagasha$medianSatRainfallSD <- rollapply(rainDf$medianRainfall, width = maxCorDf$medianRainfallSD, sd, na.rm = T, fill = NA, align = "right")
+shagasha$medianSatRainfallAvg <- rollapply(rainDf$medianRainfall, width = as.numeric(maxCorDf$medianRainfall), mean, na.rm = T, fill = NA, align = "right")
+shagasha$medianSatRainfallSD <- rollapply(rainDf$medianRainfall, width = as.numeric(maxCorDf$medianRainfallSD), sd, na.rm = T, fill = NA, align = "right")
+
 
 # aggregate data for monthly and weekly levels
 
-merra$medianRainfall <- rainDf$medianRainfall
-for (i in 1:(ncol(maxCorDf)-1)) {
-  for (j in seq(from = .25, to = 1.5, by = .25)) {
-    if (j != 1) {
-      #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, fill = NA, align = "right")
-      #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
-      varName <- paste(names(maxCorDf[i]), j, sep = "_")
-      #print(varName)
-      shagasha[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = floor((maxCorDf[i]*j)), mean, na.rm = T, fill = NA, align = "right")
-    }
-  }
-}
+# merra$medianRainfall <- rainDf$medianRainfall
+# for (i in 1:(ncol(maxCorDf)-1)) {
+#   for (j in seq(from = .25, to = 1.5, by = .25)) {
+#     if (j != 1) {
+#       #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, fill = NA, align = "right")
+#       #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
+#       varName <- paste(names(maxCorDf[i]), j, sep = "_")
+#       #print(varName)
+#       shagasha[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = floor((maxCorDf[i]*j)), mean, na.rm = T, fill = NA, align = "right")
+#     }
+#   }
+# }
 
+shagSat <- subset(shagasha, select = -c(plantationRainfall, date))
+shagPlant <- subset(shagasha, select = c(plantationRainfall, yield, month, year, weekday, week, date))
 
+comment(shagSat) <- "Shagasha Satellite Data"
+comment(shagPlant) <- "Shagasha Estate Data"
 
 shagashaMonth <- aggregate(. ~ month + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
 shagashaWeek <- aggregate(. ~ week + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
@@ -203,7 +230,9 @@ shagashaWeek$month <- as.factor(floor(shagashaWeek$month))
 
 # remove time variables that shouldn't be used for regressions
 
-shagasha <- subset(shagasha, select = -c(date, year, bimonthID))
+shagasha <- subset(shagasha, select = -c(date, bimonthID)) # year, 
 shagashaMonth <- subset(shagashaMonth, select = -c(year, bimonthID, week))
 shagashaWeek <- subset(shagashaWeek, select = -c(year, bimonthID))
 
+write.csv(shagasha, "/Users/Tom/Documents/IBI/shagasha/shagashaFullData.csv", row.names = F)
+write.csv(shagashaMonth, "/Users/Tom/Documents/IBI/shagasha/shagashaMonthAgg.csv", row.names = F)
