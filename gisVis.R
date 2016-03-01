@@ -5,6 +5,7 @@ library(raster)
 library(ggplot2)
 library(plyr)
 library(data.table)
+library(maptools)
 
 # load arbitrary rainfall gauge data
 
@@ -18,7 +19,7 @@ gauge <- rename(gauge, c("station_name" = "name"))
 
 # add type column
 
-gauge$type <- "Rainfall Gauge"
+gauge$type <- "RMA Rainfall Gauge"
 
 # remove all but one copy of each station
 # also remove the one NA row
@@ -35,7 +36,8 @@ gauge <- gauge[gauge$latitude != min(gauge$latitude), ]
 # a little unsure of the accuracy of the Shagasha dta
 
 plant <- read.csv("/Users/Tom/Documents/IBI/plantationLoc.csv")
-plant$type <- "Plantation"
+plant$type <- as.character(plant$plantationName)
+plant[plant$type == "Sorwathe", ]$type <- "Usine"
 plant <- rename(plant, c("plantationName" = "name"))
 plant <- subset(plant, select = c("name", "longitude", "latitude", "type"))
 
@@ -45,7 +47,7 @@ dta <- rbind(plant, gauge)
 
 # load RWA shapefile
 
-rwaSHP <- readOGR(dsn = "/Users/Tom/Desktop/GIS/IBI/RWA_adm/", layer = "RWA_adm1")
+rwaSHP <- readOGR(dsn = "/Users/Tom/Documents/IBI/RWA_adm/", layer = "RWA_adm1")
 rwaSHP@data$id = rownames(rwaSHP@data)
 rwaSHPPoints = fortify(rwaSHP, region = "id")
 rwaSHPdf <- join(rwaSHPPoints, rwaSHP@data, by = "id")
@@ -53,11 +55,13 @@ rwaSHPdf <- join(rwaSHPPoints, rwaSHP@data, by = "id")
 #combine
 
 visPlot <- ggplot() + geom_polygon(data = rwaSHPdf, aes(x = long, y = lat, group = group),
-                                   fill="#66CCFF", color = "black") + coord_equal() + 
+                                   fill="white", color = "black") + coord_equal() + 
+                                  #fill="#66CCFF", color = "black") + coord_equal() + 
                                    geom_path(colour = "black") + 
                                    geom_point(data = dta, aes(x = longitude, y= latitude, fill = type, color = type)) + 
-                                   scale_colour_manual(values = c("green", "red")) + 
-                                   labs(title = "Rainfall Gauges and Plantation Locations", x = "Longitude", y = "Latitude")
+                                   scale_colour_manual(values = c("green", "red", "yellow", "navy", "orange",  "pink", "purple")) + 
+                                   labs(title = "Rainfall Gauges and Plantation Locations", x = "Longitude", y = "Latitude") 
+                                   #scale_fill_discrete(breaks = c("Assopthe", "Cyohoha", "Mulindi", "Rukeri", "Shagasha", "Usine", "RMA Rainfall Gauge"))
 
 ggsave(visPlot, file = "/Users/Tom/Documents/IBI/locationPlot.png")
 

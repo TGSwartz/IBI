@@ -57,6 +57,8 @@ corPlot <- ggplot(corDf, aes(index)) +
   geom_line(aes(y = Median, colour = "Satellite Median")) +
   geom_line(aes(y = Mean, colour = "Satellite Mean")) +
   geom_line(aes(y = medianSD, colour = "Satellite Median SD")) + 
+  #geom_line(aes(y = tMaxCor, colour = "tMaxCor")) + 
+  #geom_line(aes(y = tMinCor, colour = "tMinCor")) + 
   ggtitle("Correlation Of Rainfall Estimate Moving Averages with Yield") +
   xlab("Number of Days in Moving Average") + ylab("Correlation Coefficient") +
   scale_colour_discrete(name  ="Rainfall Product", 
@@ -75,11 +77,11 @@ dev.off()
 
 # load Rwanda shapefile
 
-rwaSHP <- readOGR(dsn = "/Users/Tom/Desktop/GIS/IBI/RWA_adm/", layer = "RWA_adm0")
+rwaSHP <- readOGR(dsn = "/Users/Tom/Documents/IBI/RWA_adm/", layer = "RWA_adm0")
 
 # load demonstration EVI file, adjust it to the correct units and crs, then crop and mask
 
-eviRaster <- raster("/Users/Tom/Documents/IBI/evi/MYD13A1_2010-01-09.500m_16_days_EVI.tif")
+eviRaster <- raster("/Volumes/Tom Passport/evi/MYD13A1_2010-01-09.500m_16_days_EVI.tif")
 eviRaster <- ViAdjust(eviRaster)
 eviRaster <- projectRaster(eviRaster, crs = "+proj=longlat +datum=WGS84 +no_defs")
 eviRaster <- crop(eviRaster, extent(rwaSHP))
@@ -89,7 +91,7 @@ jpeg(paste(outputWd, "eviDemonstration.jpg", sep = ""))
 plot(eviRaster)
 dev.off()
 
-chirpsRaster <- raster("/Users/Tom/Documents/IBI/chirps/chirps-v2.0.2010.01.09.tif")
+chirpsRaster <- raster("/Volumes/Tom Passport/chirps/chirps-v2.0.2010.01.09.tif")
 chirpsRaster <- crop(chirpsRaster, extent(rwaSHP))
 chirpsRaster <- mask(chirpsRaster, rwaSHP)
 
