@@ -257,6 +257,8 @@ CreateData  <- function(estateName, recordedWeather = F) {
   
   estateName <- subset(estateName, select = -c(bimonthID, date))
   plantDta <- SelectWeatherCol(estateName, lockedName)
+  plantDta <- plantDta[!(as.character(plantDta$weekday) == "Saturday" | (as.character(plantDta$weekday) == "Sunday")), ]
+  plantDta$weekday <- factor(plantDta$weekday)
   }
   else {
     plantDta <- NA
@@ -266,6 +268,10 @@ CreateData  <- function(estateName, recordedWeather = F) {
   
   comment(plantDta) <- paste(lockedName, "estate data", sep =" ")
   comment(satDta) <- paste(lockedName, "satellite data", sep = " ")
+  #print(str(plantDta))
+  
+  satDta <- satDta[!(as.character(satDta$weekday) == "Saturday" | (as.character(satDta$weekday) == "Sunday")), ]
+  satDta$weekday <- factor(satDta$weekday)
   
   return(list(satDta = satDta, plantDta = plantDta))
 }

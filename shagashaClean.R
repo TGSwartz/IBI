@@ -221,6 +221,10 @@ shagPlant <- subset(shagasha, select = c(plantationRainfall, yield, month, year,
 comment(shagSat) <- "Shagasha Satellite Data"
 comment(shagPlant) <- "Shagasha Estate Data"
 
+shagSat <- shagSat[!(as.character(shagSat$weekday) == "Saturday" | as.character(shagSat$weekday) == "Sunday"), ]
+
+shagSat$weekday <- factor(shagSat$weekday)
+
 shagashaMonth <- aggregate(. ~ month + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
 shagashaWeek <- aggregate(. ~ week + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
 

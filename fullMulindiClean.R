@@ -301,6 +301,14 @@ mulSatMonthDta <- subset(mulSatMonthDta, select = -c(year, week))
 
 # write csv's for mulindi data
 
+mulSatDta <- mulSatDta[!((as.character(mulSatDta$weekday) == "Saturday") | (as.character(mulSatDta$weekday) == "Sunday")), ]
+mulPlantDta <- mulPlantDta[!((as.character(mulPlantDta$weekday) == "Saturday") | (as.character(mulPlantDta$weekday) == "Sunday")), ]
+
+mulSatDta$weekday <- factor(mulSatDta$weekday)
+mulPlantDta$weekday <- factor(mulPlantDta$weekday)
+
+#mulPlantDta <- mulPlantDta[as.numeric(as.character(mulPlantDta$year)) < 2014, ]
+
 comment(mulSatDta) <- "Mulindi Satellite Data"
 comment(mulPlantDta) <- "Mulindi Estate Data"
 
