@@ -1,3 +1,8 @@
+##########################################
+### Final code to run that produces    ###
+### results and prediction metrics     ###
+##########################################
+
 # load libraries
 
 library(caret)
@@ -6,20 +11,31 @@ registerDoMC(2)
 library(stringr)
 library(geosphere)
 
-mulIncomeTrue <- F
-shagIncomeTrue <- F
+
+# source files (shagasha and sorwate will create new dataframes)
+
 source('~/Github/IBI/fullMulindiClean.R')
 source('~/Github/IBI/shagashaClean.R')
 source('~/Github/IBI/sorwateClean.R')
+
+# create sorwathe area dataframes
 
 sorwathe <- CreateData("Sorwathe", recordedWeather = T)
 cyohoha <- CreateData("Cyohoha", recordedWeather = T)
 rukeri <- CreateData("Rukeri", recordedWeather = T)
 assopthe <- CreateData("Assopthe", recordedWeather = F)
-#rugundo <- CreateData("Rugundo", recordedWeather = F)
 
-FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear = 2014, modelType = "rf") {
+# define the function that will take in data and produce prediction results
+# it will take data, can take a predefined model or fit a new random forest or GLMNet
+# it will train (10 fold CV) on the data up until the prediction year then compute accuracy on the remaining data
+# if no model is provided, the user must input either "rf" or "glmnet", it will default to "glmnet"
 
+FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear = 2014, modelType = "glmnet") {
+
+  # the model will be trained using 10 fold CV and the same random seed
+  # tuning parameter grids are set for both model types
+  # R2 is used to optimize
+  # year is excluded as it is not a variable that can be depended on for the future
   
   if(providedModel == F & modelType == "rf") {
     trainControl <- trainControl(method = "cv", number = 10,returnResamp = "final") 
@@ -36,15 +52,23 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
     model = model
   }
   
-  #data <- data[complete.cases(subset(mulPlantDta, select = -c(yield))), ]
-  
+  # set data as the training data as up until the prediction year (exclusive)
+  # remove August 2014 which has some missing data
   
   data <- data[as.numeric(as.character(data$year)) >= startPredYear, ]
   data <- data[!(as.numeric(as.character(data$month)) ==8 & as.numeric(as.character(data$year)) == 2014), ]
+  
+  # fill a vector for predictions
+  # predict for complete cases of features (NAs will be left for non-completes)
+  # convert to a dataframe with time variables
+  
   pred <- rep(NA, nrow(data))
   pred[complete.cases(subset(data, select = -c(yield)))] <- suppressWarnings(predict(model, data))
   pred <- data.frame(month = data$month, year = data$year, week = data$week, 
                      yield = pred)
+  
+  # aggregate predictions and true data for comparisions
+  
   trueWeek <- aggregate(yield ~ week + year, data = data, 
                         FUN = mean, na.rm = T, na.action = NULL )
   trueMonth <- aggregate(yield ~ month + year, data = data, 
@@ -53,6 +77,10 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
                         FUN = mean, na.rm = T, na.action = NULL )
   predMonth <- aggregate(yield ~ month + year, data = pred, 
                          FUN = mean, na.rm = T, na.action = NULL )
+  
+  # compute RMSE and R2 for the different granularities and print results
+  # return a list of results and data and the model fit
+  
   rmseDay <- RMSE(pred$yield, data$yield, na.rm = T)
   rmseWeek <- RMSE(predWeek$yield, trueWeek$yield, na.rm = T)
   rmseMonth <- RMSE(predMonth$yield, trueMonth$yield, na.rm = T)
@@ -68,6 +96,7 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
   print(paste("Weekly R-Squared is:", as.numeric(rsqWeek)))
   print(paste("Monthly R-Squared is:", as.numeric(rsqMonth)))
   print(paste(""))
+  
   return(list(rmseDay = rmseDay, rmseWeek = rmseWeek, rmseMonth = rmseMonth, 
               rsqDay = rsqDay, rsqWeek = rsqWeek, rsqMonth = rsqMonth,
               predDay = pred, predWeek = predWeek, predMonth = predMonth,
@@ -76,6 +105,20 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
   
   
 }
+
+# compute model fits and results for GLMNet models
+# RF models not run but results are worse than GLMNet
+
+mul2014SatGLM <- FutureModelPred(data = mulSatDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+sha2014SatGLM <- FutureModelPred(data = shagSatDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+mul2014EstGLM <- FutureModelPred(data = mulPlantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+cyo2014SatGLM <- FutureModelPred(data = cyohoha$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+sor2014SatGLM <- FutureModelPred(data = sorwathe$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+cyo2014EstGLM <- FutureModelPred(data = cyohoha$plantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+sor2014EstGLM <- FutureModelPred(data = sorwathe$plantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+ruk2014SatGLM <- FutureModelPred(data = rukeri$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+ruk2014EstGLM <- FutureModelPred(data = rukeri$plantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
+ass2014SatGLM <- FutureModelPred(data = assopthe$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
 
 # mul2014SatRF <- FutureModelPred(data = mulSatDta, providedModel = F, startPredYear = 2014, modelType = "rf")
 # sha2014SatRF <- FutureModelPred(data = shagSat, providedModel = F, startPredYear = 2014, modelType = "rf")
@@ -90,28 +133,15 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
 # #rug2014SatRF <- FutureModelPred(data = rugundo$satDta, providedModel = F, startPredYear = 2014, modelType = "rf")
 # ass2014SatRF <- FutureModelPred(data = assopthe$satDta, providedModel = F, startPredYear = 2014, modelType = "rf")
 
-mul2014SatGLM <- FutureModelPred(data = mulSatDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-sha2014SatGLM <- FutureModelPred(data = shagSat, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-mul2014EstGLM <- FutureModelPred(data = mulPlantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-#shag2014PlantResults <- FutureModelPred(data = shagPlant, providedModel = F, startPredYear = 2014)
-cyo2014SatGLM <- FutureModelPred(data = cyohoha$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-sor2014SatGLM <- FutureModelPred(data = sorwathe$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-cyo2014EstGLM <- FutureModelPred(data = cyohoha$plantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-sor2014EstGLM <- FutureModelPred(data = sorwathe$plantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-ruk2014SatGLM <- FutureModelPred(data = rukeri$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-ruk2014EstGLM <- FutureModelPred(data = rukeri$plantDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-#rug2014SatGLM <- FutureModelPred(data = rugundo$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-ass2014SatGLM <- FutureModelPred(data = assopthe$satDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-
-
+# save a list of models
 
 saveList = c(ls(pattern = "RF"), ls(pattern = "GLM"))
 save(list = saveList, file = "/Users/Tom/Documents/IBI/fullEstateModelsNAisNAnoRF.RData")
-#mulCheck <- FutureModelPred(data = mulSatDta, providedModel = T, model = mul2014SatResults$fit, startPredYear = 2014)
 
+# create dataframes that will contain results of model predictions on holdout set
+# not a particularly elegant solution but it works
 
 estateNames = c("Mulindi", "Shagasha", "Rukeri", "Cyohoha", "Assopthe", "Sorwathe", "Average")
-#rowNames = c("Factory Weather Station E-Net", "Factory Weather Station Random Forest", "Satellite Composite E-Net", "Satellite Composite Random Forest")
 rowNames = c("Factory Weather Station E-Net", "Satellite Composite E-Net")
 df <- data.frame(matrix(ncol = length(estateNames), nrow = length(rowNames)))
 colnames(df) <- estateNames
@@ -169,136 +199,52 @@ dayRsq = round(dayRsq, digits = 2)
 weekRsq = round(weekRsq, digits = 2)
 monthRsq = round(monthRsq, digits = 2)
 
-write.csv(dayRsq, file = "/Users/Tom/Documents/IBI/rsqResults.csv", row.names = T)
-write.csv(weekRsq, file = "/Users/Tom/Documents/IBI/rsqResults.csv", row.names = T)
-write.csv(monthRsq, file = "/Users/Tom/Documents/IBI/rsqResults.csv", row.names = T)
+write.csv(dayRsq, file = "/Users/Tom/Documents/IBI/finalData/dayRsqResults.csv", row.names = T)
+write.csv(weekRsq, file = "/Users/Tom/Documents/IBI/finalData/weekRsqResults.csv", row.names = T)
+write.csv(monthRsq, file = "/Users/Tom/Documents/IBI/finalData/monthRsqResults.csv", row.names = T)
 
-# coefDf <- function(model) {
-#   coef <- as.matrix(coef(model$finalModel, model$bestTune$lambda)) # select best model coef
-#   coef <- round(coef[, 1], 3) # round to 3 digits
-#   coef <- coef[order(abs(coef), decreasing = T)] # sort in decreasing order
-#   coef <- coef[which(coef != 0)] # cut the zero-variables
-#   coef <- coef[!grepl("week", x = names(coef))]
-#   coef <- coef[!grepl("month", x = names(coef))]
-#   coef <- coef[!grepl("Intercept", x = names(coef))]
-#   coefDf <- data.frame(coef)
-#   coefDf$names <- names(coef)
-#   return(coefDf)
-# }
+# define function to create a dataframe of coefficients from the best model for each dataset
+# remove week, month, and intercept as these are not relevant for comparing different satellite products
 
-# satList = c(ls(pattern = "SatGLM"))
-# for (i in 1:length(satList)) {
-#   assign(paste(satList[i], "coef", sep = ""), coefDf(eval(parse(text=paste(satList[i])))$fit))
-# }
-# 
-# timeDropCol <- c("yield", "month", "weekday", "week", "year")
-# 
-# names(sorwathe$plantDta[ , -which(names(sorwathe$plantDta) %in% timeDropCol)])
-#       names(rukeri$plantDta[ , -which(names(rukeri$plantDta) %in% timeDropCol)])
-#       names(assopthe$plantDta[ , -which(names(assopthe$plantDta) %in% timeDropCol)])
-#       names(cyohoha$plantDta[ , -which(names(cyohoha$plantDta) %in% timeDropCol)])
-# 
-# corMat <- round(cor(data.frame(cyohoha = cyohoha$plantDta$Cyohoha_Pluv, 
-#                            usine = sorwathe$plantDta$Sorwathe_Pluv, 
-#                            rukeri = rukeri$plantDta$Rukeri_Pluv), use = "complete.obs"), 
-#                            digits = 2)
-# 
-# corMat2 <- matrix(corMat, ncol = 3, nrow = 3)
-# rownames(corMat2) <- names(data.frame(corMat))
-# colnames(corMat2) <- names(data.frame(corMat))
-# 
-# corrplot(corMat, diag = F, type = "upper", method = "number")
-# 
-# sorLoc <- read.csv("/Users/Tom/Documents/IBI/plantationLoc.csv", stringsAsFactors = F)
-# sorLoc <- rename(sorLoc, c("plantationName" = "name"))
-# sorLoc[sorLoc$name == "Sorwathe", ]$name <- "Usine"
-# sorLoc <- subset(sorLoc, select = c("name", "longitude", "latitude"))
-# sorLoc <- rename(sorLoc, replace =  c("longitude" = "lon", "latitude" = "lat"))
-# rownames(sorLoc) <- sorLoc$name
-# sorLoc <- sorLoc[c( "Cyohoha", "Usine", "Rukeri"), ]
-# 
-# cyoUsi <- round(distCosine(subset(sorLoc["Cyohoha", ], select = c("lon", "lat")),  
-#            subset(sorLoc["Usine", ], select = c("lon", "lat")))/1000, digits = 2)
-# cyoRuk <- round(distCosine(subset(sorLoc["Cyohoha", ], select = c("lon", "lat")),  
-#             subset(sorLoc["Rukeri", ], select = c("lon", "lat")))/1000, digits = 2)
-# rukUsi <- round(distCosine(subset(sorLoc["Rukeri", ], select = c("lon", "lat")),  
-#             subset(sorLoc["Usine", ], select = c("lon", "lat")))/1000, digits = 2)
-# 
-# distMat <- matrix(nrow = 3, ncol = 3)
-# rownames(distMat) <- names(data.frame(corMat))
-# colnames(distMat) <- names(data.frame(corMat))
-# 
-# distMat["cyohoha", "cyohoha"] <- 0
-# distMat["rukeri", "rukeri"] <- 0
-# distMat["usine", "usine"] <- 0
-# distMat["cyohoha", "usine"] <- cyoUsi
-# distMat["usine", "cyohoha"] <- cyoUsi
-# distMat["cyohoha", "rukeri"] <- cyoRuk
-# distMat["rukeri", "cyohoha"] <- cyoRuk
-# distMat["rukeri", "usine"] <- rukUsi
-# distMat["usine", "rukeri"] <- rukUsi
-# 
-# corrplot(distMat, method = "number", is.corr = F, type = "upper", cl.pos = "n", col = "black", diag = F)
-# 
-# 
-# ### start of index
-# 
-# mulIncomeTrue <- T
-# source('~/Github/IBI/fullMulindiClean.R')
-# shagIncomeTrue <- T
-# source('~/Github/IBI/shagashaClean.R')
-# 
-# mul2014SatGLMIncome <- FutureModelPred(data = mulSatDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-# 
-# 
-# 
-# predYield <- rep(NA, nrow(mulSatDta))
-# predYield[complete.cases(mulSatDta)] <- predict(mul2014SatGLMIncome$fit, mulSatDta)
-# predYield <- data.frame(predYield = predYield, month = mulSatDta$month, year = mulSatDta$year)
-# predYield <- aggregate(predYield ~ month + year, data = predYield, FUN = sum, na.rm = T, na.action = NULL)
-# 
-# shagIncomeTrue <- T
-# source('~/Github/IBI/shagashaClean.R')
-# 
-# sha2014SatGLMIncome <- FutureModelPred(data = shagSat, providedModel = F, startPredYear = 2014, modelType = "glmnet")
-# 
-# predYield <- rep(NA, nrow(shagSat))
-# predYield[complete.cases(shagSat)] <- predict(sha2014SatGLMIncome$fit, shagSat)
-# predYield <- data.frame(predYield = predYield, month = shagSat$month, year = shagSat$year)
-# predYield <- aggregate(predYield ~ month + year, data = predYield, FUN = sum, na.rm = T, na.action = NULL)
-# #trueMonthIncome <- aggregate(yield ~ as.numeric(as.character(month)) + as.numeric(as.character(year)), data = shagSat, FUN = sum, na.rm = T, na.action = NULL)*100
-# 
-# 
-# #predIncome <- predYield$predYield*100
-# trueMonthIncome <- aggregate(yield ~ month + year, data = shagSat, FUN = sum, na.rm = T, na.action = NULL)*100
-# 
-# # assume 100 RWF per kg 
-# # assume max 500
-# 
-# predIncome <- predYield[4:nrow(predYield),]$predYield*100
-# trueMonthIncome <- trueMonthIncome[4:nrow(trueMonthIncome),]
-# trueMonthIncome[trueMonthIncome$yield == 0, ]  <- NA
-# 
-# payoffFloor <- as.numeric(quantile(trueMonthIncome$yield, .15, na.rm = T))
-# payoffMax <- 30000
-# cost <- payoffMax *.1
-# 
-# 
-# 
-# insureIncome <- predIncome
-# belowMaxPayoff <- (insureIncome <= (payoffFloor - payoffMax))
-# insureIncome[(insureIncome < payoffFloor) & !belowMaxPayoff] <- payoffFloor
-# insureIncome[belowMaxPayoff] <- payoffMax
-# 
-# sum(trueMonthIncome[!(is.na(trueMonthIncome$yield)), "yield"])
-# sum(insureIncome[!is.na(trueMonthIncome$yield)])
-# #insureIncome[(insureIncome < payoffFloor) & !belowMaxPayoff] <- payoffFloor
-# 
-# 
-# insureIncome <- insureIncome - cost
-# 
-# ggplot(stack(data.frame(insureIncome = insureIncome, trueIncome = trueMonthIncome$yield)), 
-#        aes(x = values)) + geom_density(aes(group = ind, color = ind))
-# 
-# sd(trueMonthIncome$yield, na.rm = T)/mean(trueMonthIncome$yield, na.rm = T)
-# sd(insureIncome, na.rm = T)/mean(insureIncome, na.rm = T)
+CoefDf <- function(model, rankOnly = F) {
+  coef <- as.matrix(coef(model$finalModel, model$bestTune$lambda)) # select best model coef
+  coef <- abs(round(coef[, 1], 3)) # round to 3 digits
+  coef <- coef[order(abs(coef), decreasing = T)] # sort in decreasing order
+  coef <- coef[!grepl("week", x = names(coef))]
+  coef <- coef[!grepl("month", x = names(coef))]
+  coef <- coef[!grepl("Intercept", x = names(coef))]
+  coefDf <- data.frame(rank(coef, ties.method = "first"), row.names = NULL)
+  coefDf$names <- names(coef)
+  return(coefDf)
+}
+
+# find all satellite GLM fits to pull put their coefficients and then run them through the
+# function that determines best coefficients
+
+satList = c(ls(pattern = "SatGLM"))
+for (i in 1:length(satList)) {
+  assign(paste(satList[i], "coef", sep = ""), CoefDf(eval(
+    parse(text = paste(satList[i])))$fit))
+}
+
+# define list of fits and their coefficients
+
+coefList <- list(ruk2014SatGLMcoef, ass2014SatGLMcoef, cyo2014SatGLMcoef, mul2014SatGLMcoef, sha2014SatGLMcoef, sor2014SatGLMcoef)
+
+# function to merge all the cofficients dataframes together
+
+mergeAll <- function(x, y) {
+  suppressWarnings(merge(x, y, all=TRUE, by="names"))
+}
+
+# merge and average the coefficients from all the different estates
+# then order them by absolute value and rank them 
+# pull out the rank for description purposes
+
+coefDf <- Reduce(mergeAll, coefList)
+coefDf$average <- rowMeans(subset(coefDf, select = -c(names)))
+coefDf <- coefDf[order(abs(coefDf$average), decreasing = T), ]
+coefDf$rank <- rank(-coefDf$average)
+coefDf <- subset(coefDf, select = c(names, rank))
+
+write.csv(coefDf, "/Users/Tom/Documents/IBI/finalData/coefAvg.csv", row.names = F)
