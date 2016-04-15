@@ -1,3 +1,8 @@
+##########################################
+### Clean and assemble the datasets to ###
+### form the final Sorwate data frames ###
+##########################################
+
 # load appriorate functions
 
 source('~/Github/IBI/geoFunctions.R')
@@ -5,7 +10,9 @@ source('~/Github/IBI/geoFunctions.R')
 libraries <- c("data.table", "xts", "lubridate", "TTR", "plyr", "caTools", "matrixStats")
 lapply(libraries, require, character.only = TRUE)
 
-# set first date
+# set first date and end date
+# first date from first day of MODIS data
+# end date matches Mulindi for consistency in holdout set
 
 firstYear <- 2002
 firstMonth <- 7
@@ -17,9 +24,16 @@ endMonth <- 05
 endDay <- 31 
 endDate <- as.Date(paste(endYear, endMonth, endDay, sep = "-"), format = "%Y-%m-%d")
 
+# workout function that creates data for different estates in the sorwate region using the apprioriate data
+
 CreateData  <- function(estateName, recordedWeather = F) {
   
+  # create version of the name to be used for naming columns in the dataset
+  
   lockedName <- estateName
+  
+  # read in the productivity data and change of producitivity column to yield
+  # keep yield and date only and format date
   
   estateName <- read.csv("/Users/Tom/Documents/IBI/sorwateArea/sorwateAreaProductivity.csv", 
                       stringsAsFactors = F, na.strings = "")
@@ -33,22 +47,26 @@ CreateData  <- function(estateName, recordedWeather = F) {
   
   estateName$date <- as.Date(estateName$date, format = "%d-%b-%y")
   
+  # create a dataframe that has NAs for missing producitivity date
+  
   estateName <- merge(estateName, data.frame(date = seq.Date(firstDate, 
                                                        endDate, 
                                                        by = 1)), all = T)
   
   estateName <- estateName[estateName$date >= firstDate & estateName$date <= endDate, ]
   
+  # format time variables
+  
   estateName$month <- as.factor(month(estateName$date))
   estateName$year <- as.factor(year(estateName$date))
   estateName$weekday <- as.factor(weekdays(as.Date(estateName$date)))
   estateName$week <- as.factor(week(estateName$date))
   
+  # center and scale yield (for comparable RMSE figures) and replace missing yields with NA
+  
   estateName$yield <- as.numeric(scale(estateName$yield, center = T, scale = T))
-  #estateName$yield <- as.numeric(estateName$yield/280)
   
   estateName[is.na(estateName$yield), ]$yield <- NA
-  #estateName[is.na(estateName$rainfall), ]$rainfall <- 0
   
   
   # create evi bimonthly ID for merging
@@ -57,6 +75,10 @@ CreateData  <- function(estateName, recordedWeather = F) {
   # make date a date object
   
   date <- as.Date(paste(firstYear, firstMonth, as.character(firstDay), sep = "-")) 
+  
+  # this function cycles through the dataframe and creates a BimonthID that is used to merge with the EVI records
+  # it cycles every 16 days and resets to at beginning of each year and that new EVI lasts until Jan 6
+  # new bimonth EVI begins at Jan 7 as it does for the Modis 16-day products
   
   count <- 1
   internalCount <- 1
@@ -76,10 +98,14 @@ CreateData  <- function(estateName, recordedWeather = F) {
     date <- date + 1
   }
   
+  # merge the bimonth evi for the sorwate estate with the yield (drop the file date column used for eyeball checking the correct merging)
+  
   bimonthEvi <- read.csv(paste("/Users/Tom/Documents/IBI/sorwateArea/", lockedName, "BimonthEvi.csv", sep = ""), stringsAsFactors = F)
   estateName <- merge(estateName, bimonthEvi, by = "bimonthID")
   estateName <- estateName[order(estateName$date), ]
   estateName <- estateName[,!(names(estateName) %in% c("fileDate"))]
+  
+  # set the working directory for Merra files
   
   wd <- "/Users/Tom/Documents/IBI/sorwateArea/"
   
@@ -116,7 +142,7 @@ CreateData  <- function(estateName, recordedWeather = F) {
   
   merra$date <- as.Date(merra$date) 
   merra <- merge(estateName, merra, by = "date")
-  print(nrow(merra))
+
   # merge merra data into the sorwate data frame
   
   estateName$merraRzmc <- merra$rzmc
@@ -128,6 +154,8 @@ CreateData  <- function(estateName, recordedWeather = F) {
   estateName$merraGwettop <- merra$gwettop
   
   # load satellite rainfall products and format
+  # Tamsat data was not downloading when I was trying to get access for Sorwate area 
+  # (after Mulindi and Shagasha due to different times we received the yield data) 
   
   #tamsat <- read.csv(paste("/Users/Tom/Documents/IBI/sorwateArea/", estateName, "Tamsat.csv", sep = ""))
   #tamsat <- rename(subset(tamsat, select = c("date", "meanRainfall")), c("meanRainfall" = "tamsatRainfall"))
@@ -148,7 +176,7 @@ CreateData  <- function(estateName, recordedWeather = F) {
   
   rainDf <- merge(
     chirps, arc, by = "date", all.x = T, all.y = F)
-  print(nrow(rainDf))
+
   
   # take the median of the satellite products
   
@@ -157,7 +185,6 @@ CreateData  <- function(estateName, recordedWeather = F) {
   rainDf$medianRainfall <- rowMedians(as.matrix(rainDf[, avgCol]))
   
   # merge the median into the sorwate dataframe and create rolling averages for the products
-  
   
   maxCorDf <- data.frame(rzmc = which.max(abs(MovingAverageCorrelation(merra$rzmc, merra$yield, 1, 100, "mean"))),
                          prmc = which.max(abs(MovingAverageCorrelation(merra$prmc, merra$yield, 1, 100, "mean"))), 
@@ -173,15 +200,9 @@ CreateData  <- function(estateName, recordedWeather = F) {
   estateName$medianSatRainfallAvg <- rollapply(rainDf$medianRainfall, width = as.numeric(maxCorDf$medianRainfall), mean, na.rm = T, fill = NA, align = "right")
   estateName$medianSatRainfallSD <- rollapply(rainDf$medianRainfall, width = as.numeric(maxCorDf$medianRainfallSD), sd, na.rm = T, fill = NA, align = "right")
   
-  
-  print(maxCorDf)
-  
-  
   # load max correlations from Mulindi
-  # create MERRA rolling averages based off the max correlations from Mulindi
-  
-  #load("/Users/Tom/Documents/IBI/mulindiMaxCorDf.RData")
-  
+  # create MERRA rolling averages based off the max correlations determined above
+
   estateName$merraRzmcAvg <- rollapply(merra$rzmc, width = as.numeric(maxCorDf$rzmc), mean, na.rm = T, fill = NA, align = "right")
   estateName$merraPrmcAvg <- rollapply(merra$prmc, width = as.numeric(maxCorDf$prmc), mean, na.rm = T, fill = NA, align = "right")
   estateName$merraSfmcAvg <- rollapply(merra$sfmc, width = as.numeric(maxCorDf$sfmc), mean, na.rm = T, fill = NA, align = "right")
@@ -191,40 +212,32 @@ CreateData  <- function(estateName, recordedWeather = F) {
   estateName$merraGwettopAvg <- rollapply(merra$gwettop, width = as.numeric(maxCorDf$gwettop), mean, na.rm = T, fill = NA, align = "right")
   
   
-  
   # aggregate data for monthly and weekly levels
   
-  # merra$medianRainfall <- rainDf$medianRainfall
-  # for (i in 1:(ncol(maxCorDf)-1)) {
-  #   for (j in seq(from = .25, to = 1.5, by = .25)) {
-  #     if (j != 1) {
-  #       #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, fill = NA, align = "right")
-  #       #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
-  #       varName <- paste(names(maxCorDf[i]), j, sep = "_")
-  #       #print(varName)
-  #       estateName[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = floor((maxCorDf[i]*j)), mean, na.rm = T, fill = NA, align = "right")
-  #     }
-  #   }
-  # }
-  
-  
-  
-  estateNameMonth <- aggregate(. ~ month + year, data = subset(estateName, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
-  estateNameWeek <- aggregate(. ~ week + year, data = subset(estateName, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
+  #estateNameMonth <- aggregate(. ~ month + year, data = subset(estateName, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
+  #estateNameWeek <- aggregate(. ~ week + year, data = subset(estateName, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
   
   # make round down month for weekly aggregate so that it is even months rather than fractions
   
-  estateNameWeek$month <- as.factor(floor(estateNameWeek$month))
+  #estateNameWeek$month <- as.factor(floor(estateNameWeek$month))
+  
+  # select satellite data into a dataset
   
   satDta <- subset(estateName, select = -c(bimonthID, date))
   
+  # select data for estate records after Dec 2006 because estate-recorded rainfall data only exists past that point
+  
   estateName <- estateName[estateName$date >= as.Date(paste(2006, 12, 01, sep = "-"), format = "%Y-%m-%d"), ]
+  
+  # if there is recorded weather data, merge in that weather data with yield
+  # else, make the plantDta DF null
   
   if (recordedWeather == T) {
     
   weather <- read.csv("/Users/Tom/Documents/IBI/sorwateArea/sorwateAreaRainfall.csv", 
                       stringsAsFactors = F, na.strings = "")
   
+  # keep the columns for the approriate estate from the recorded data
   
   weatherKeepCol <- c(paste(lockedName, "_Pluv", sep= ""),
                       paste(lockedName, "_Temp", sep= ""),
@@ -238,25 +251,42 @@ CreateData  <- function(estateName, recordedWeather = F) {
   
   weather <- subset(weather, select = weatherKeepCol)
   weather$date <- as.Date(weather$date, format = "%d-%b-%y")
+  
+  # remove the duplicates that exist in the weather data
+  
   weather <- weather[!duplicated(weather$date), ]
   
   estateName <- merge(estateName, weather, by = "date", all.x = T, all.y = F)
   
+  # create the rolling average column for the estate for each weather variable
+  
   for (i in 1:(length(weatherKeepCol) - 1)) {
     varName <- weatherKeepCol[i]
     newColName <- paste(weatherKeepCol[i], "Avg", sep = "")
-    #print(varName)
+    
+    # create moving average that at the window width that maximizes correlation with yield
+    # if the the entire column is NAs, fill that average column with NAs
+    
     if (sum(is.na(estateName[, varName]))/nrow(estateName) != 1) {
-    estateName[, newColName] <- rollapply(estateName[, varName], width = as.numeric(which.max(abs(MovingAverageCorrelation(estateName[, varName], estateName$yield, 1, 100, "mean")))), mean, na.rm = T, fill = NA, align = "right")
-    print(as.numeric(which.max(abs(MovingAverageCorrelation(estateName[, varName], estateName$yield, 1, 100, "mean")))))
+    estateName[, newColName] <- 
+      rollapply(estateName[, varName], width = as.numeric(which.max(
+        abs(MovingAverageCorrelation(estateName[, varName], estateName$yield, 1, 100, 
+                                     "mean")))), mean, na.rm = T, fill = NA, align = "right")
     }
     else {
       estateName[, newColName] <- NA
     }
   }
   
+  # remove bimonthID and date from dataframe
+  # run the keep weather col function (below)
+  
   estateName <- subset(estateName, select = -c(bimonthID, date))
   plantDta <- SelectWeatherCol(estateName, lockedName)
+  
+  # remove weekend days as yield is highly variable (due to non-weather reasons)
+  # refactor weekday variable so no weekend levels
+  
   plantDta <- plantDta[!(as.character(plantDta$weekday) == "Saturday" | (as.character(plantDta$weekday) == "Sunday")), ]
   plantDta$weekday <- factor(plantDta$weekday)
   }
@@ -264,17 +294,24 @@ CreateData  <- function(estateName, recordedWeather = F) {
     plantDta <- NA
   }
   
-  
+  # comment the name of the data so that it can be printed with the model results
   
   comment(plantDta) <- paste(lockedName, "estate data", sep =" ")
   comment(satDta) <- paste(lockedName, "satellite data", sep = " ")
-  #print(str(plantDta))
+  
+  # remove weekend days as yield is highly variable (due to non-weather reasons)
+  # refactor weekday variable so no weekend levels
   
   satDta <- satDta[!(as.character(satDta$weekday) == "Saturday" | (as.character(satDta$weekday) == "Sunday")), ]
   satDta$weekday <- factor(satDta$weekday)
   
+  write.csv(plantDta, paste("/Users/Tom/Documents/IBI/finalData/", lockedName, "PlantData.csv", sep = ""), row.names = F)
+  write.csv(satDta, paste("/Users/Tom/Documents/IBI/finalData/", lockedName, "SatData.csv", sep = ""), row.names = F)
+  
   return(list(satDta = satDta, plantDta = plantDta))
 }
+
+# function that creates the weather columns for the estate-recorded data
 
 SelectWeatherCol <- function(estateName, lockedName) {
   weatherCol <- c(paste(lockedName, "_Pluv", sep= ""),
@@ -295,10 +332,13 @@ SelectWeatherCol <- function(estateName, lockedName) {
                   paste(lockedName, "_Hygro_MaxAvg", sep= ""))
   finalCol <- c("yield", "month", "weekday", "week", "year")
   
+  # only keep weather data if it has less than 50% missing data
+  # this is reduce missing data in the features and thus less observations for training
+  # for those columns that meet the criteria, add them to the final columns
+  
   for(i in 1:length(weatherCol)) {
     
     if (sum(!is.na(estateName[, weatherCol[i]]))/nrow(estateName) > .5) {
-      print(weatherCol[i])
       finalCol <- c(finalCol, weatherCol[i])
       
     }

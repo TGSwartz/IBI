@@ -1,3 +1,8 @@
+##########################################
+### Clean and assemble the datasets to ###
+### form the final Shagasha data frame ###
+##########################################
+
 # load appriorate functions
 
 source('~/Github/IBI/geoFunctions.R')
@@ -43,7 +48,7 @@ shagasha$year <- as.factor(year(shagasha$date))
 shagasha$weekday <- as.factor(weekdays(as.Date(shagasha$date)))
 shagasha$week <- as.factor(week(shagasha$date))
 
-# replace non-numeric valeus as 0
+# replace non-numeric valeus as NAs
 
 shagasha[!is.na(shagasha$plantationRainfall) & shagasha$plantationRainfall == "NT", ]$plantationRainfall <- NA
 shagasha[!is.na(shagasha$yield) & shagasha$yield == " -   ", ]$yield <- NA
@@ -59,15 +64,7 @@ suppressWarnings(shagasha$yield <- as.numeric(gsub(",", "", shagasha$yield)))
 
 # scale and center the yield estimates
 
-if (shagIncomeTrue == F) {
-  shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
-}
-if (shagIncomeTrue == T) {
-  shagasha$yield <- as.numeric(shagasha$yield/1580)
-}
-
-#shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
-#shagasha$yield <- as.numeric(shagasha$yield/1580)
+shagasha$yield <- as.numeric(scale(shagasha$yield, center = T, scale = T))
 
 # make date a date object
 
@@ -99,9 +96,9 @@ shagasha <- merge(shagasha, bimonthEvi, by = "bimonthID")
 shagasha <- shagasha[order(shagasha$date), ]
 shagasha <- shagasha[,!(names(shagasha) %in% c("fileDate"))]
 
-wd <- "/Users/Tom/Documents/IBI/shagasha/"
-
 # load the different merra products
+
+wd <- "/Users/Tom/Documents/IBI/shagasha/"
 
 merraGrn <- read.csv(paste(wd, "shagashaMerra_grn.csv", sep = ""))
 merraRzmc <- read.csv(paste(wd, "shagashaMerra_rzmc.csv", sep = ""))
@@ -173,7 +170,8 @@ avgCol <- c("tamsatRainfall", "chirpsRainfall", "arcRainfall")
 rainDf$medianRainfall <- rowMedians(as.matrix(rainDf[, avgCol]))
 
 
-#load("/Users/Tom/Documents/IBI/mulindiMaxCorDf.RData")
+# find maximum correlations between yield and lagged weather variables
+# then add features according to points of maximum correlation
 
 maxCorDf <- data.frame(rzmc = which.max(abs(MovingAverageCorrelation(merra$rzmc, merra$yield, 1, 100, "mean"))),
                        prmc = which.max(abs(MovingAverageCorrelation(merra$prmc, merra$yield, 1, 100, "mean"))), 
@@ -200,43 +198,23 @@ shagasha$medianSatRainfallAvg <- rollapply(rainDf$medianRainfall, width = as.num
 shagasha$medianSatRainfallSD <- rollapply(rainDf$medianRainfall, width = as.numeric(maxCorDf$medianRainfallSD), sd, na.rm = T, fill = NA, align = "right")
 
 
-# aggregate data for monthly and weekly levels
+# seperate to estate and satellite datasets
+# add comments for printing results
 
-# merra$medianRainfall <- rainDf$medianRainfall
-# for (i in 1:(ncol(maxCorDf)-1)) {
-#   for (j in seq(from = .25, to = 1.5, by = .25)) {
-#     if (j != 1) {
-#       #mulindi[, ncol(mulindi) +1] <- rollapply(merra$, width = (maxCorDf$gwettop*j), mean, na.rm = T, fill = NA, align = "right")
-#       #colnames(mulindi)[ncol(mulindi)] <- paste(names(maxCorDf[i]), j, sep = "_")
-#       varName <- paste(names(maxCorDf[i]), j, sep = "_")
-#       #print(varName)
-#       shagasha[,varName] <- rollapply(merra[,names(maxCorDf[i])], width = floor((maxCorDf[i]*j)), mean, na.rm = T, fill = NA, align = "right")
-#     }
-#   }
-# }
+shagSatDta <- subset(shagasha, select = -c(plantationRainfall, date))
+shagPlantDta <- subset(shagasha, select = c(plantationRainfall, yield, month, year, weekday, week, date))
 
-shagSat <- subset(shagasha, select = -c(plantationRainfall, date))
-shagPlant <- subset(shagasha, select = c(plantationRainfall, yield, month, year, weekday, week, date))
+comment(shagSatDta) <- "Shagasha Satellite Data"
+comment(shagPlantDta) <- "Shagasha Estate Data"
 
-comment(shagSat) <- "Shagasha Satellite Data"
-comment(shagPlant) <- "Shagasha Estate Data"
+# add plantation rainfall rolling average
 
-shagSat <- shagSat[!(as.character(shagSat$weekday) == "Saturday" | as.character(shagSat$weekday) == "Sunday"), ]
+shagPlantDta$plantationRainfallAvg <- rollapply(shagPlantDta$plantationRainfall, width = which.max(abs(MovingAverageCorrelation(shagPlantDta$plantationRainfall, shagPlantDta$yield, 1, 100, "mean"))), mean, na.rm = T, fill = NA, align = "right")
 
-shagSat$weekday <- factor(shagSat$weekday)
+# drop weekends due to high variability in weekend yields between estates
+# refactor weekday variable to remove weekend levels
 
-shagashaMonth <- aggregate(. ~ month + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
-shagashaWeek <- aggregate(. ~ week + year, data = subset(shagasha, select = -c(weekday, date)), FUN = mean, na.rm = T, na.action = NULL )
+shagSatDta <- shagSatDta[!(as.character(shagSatDta$weekday) == "Saturday" | as.character(shagSatDta$weekday) == "Sunday"), ]
+shagSatDta$weekday <- factor(shagSatDta$weekday)
 
-# make round down month for weekly aggregate so that it is even months rather than fractions
-
-shagashaWeek$month <- as.factor(floor(shagashaWeek$month))
-
-# remove time variables that shouldn't be used for regressions
-
-shagasha <- subset(shagasha, select = -c(date, bimonthID)) # year, 
-shagashaMonth <- subset(shagashaMonth, select = -c(year, bimonthID, week))
-shagashaWeek <- subset(shagashaWeek, select = -c(year, bimonthID))
-
-write.csv(shagasha, "/Users/Tom/Documents/IBI/shagasha/shagashaFullData.csv", row.names = F)
-write.csv(shagashaMonth, "/Users/Tom/Documents/IBI/shagasha/shagashaMonthAgg.csv", row.names = F)
+write.csv(shagPlantDta, "/Users/Tom/Documents/IBI/finalData/shagashaPlantData.csv", row.names = F)
