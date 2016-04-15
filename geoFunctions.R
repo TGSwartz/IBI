@@ -1,14 +1,16 @@
+##########################################
+### Functions used in the analysis of  ###
+### GIS data and some date formatting  ###
+##########################################
+
 library(lubridate)
 library(raster)
 library(zoo)
 library(rgdal)
-
-# Library of functions for converting rasters to a brick
-# doesn't work yet
-
-QuiettLoadLib <- function(libraries) {
-  lapply(libraries, require, character.only = TRUE, quietly = TRUE)
-}
+library(ggplot2)
+library(plyr)
+library(data.table)
+library(maptools)
 
 # converts a input (numeric or character) to a 2 day digit character for reading in file names
 
@@ -26,17 +28,6 @@ ViAdjust <- function(data) {
 # takes a point's lat and lon and makes a bounding box around it up to a distance in degrees
 # specified by the user
 
-# DegreePointExtent <- function(pointFile, rowName, point, degreeDistance) {
-#   csv <- read.csv(pointFile)
-#   lon <- csv[csv[, rowName] == point, ]$longitude
-#   lat <- csv[csv[, rowName] == point, ]$latitude
-#   upperLon <- lon + degreeDistance
-#   lowerLon <- lon - degreeDistance
-#   upperLat <- lat + degreeDistance
-#   lowerLat <- lat - degreeDistance
-#   box <- extent(lowerLon, upperLon, lowerLat, upperLat) # vector (length=4; order= xmin, xmax, ymin, ymax)
-#   return(box)
-# }
 
 DegreePointExtent <- function(dta, degreeDistance) {
   box <- extent(xmin(dta) - degreeDistance, xmax(dta) + degreeDistance, 
@@ -51,6 +42,7 @@ MeterPointExtent <- function(dta, meterDistance) {
   box <- extent(xmin(dta) - meterDistance, xmax(dta) + meterDistance, 
                 ymin(dta) - meterDistance, ymax(dta) + meterDistance)
 }
+
 # function that resamples the "value raster" (ndvi, rain, etc.)
 # returns a raster with the same resolution and extent of the coverType raster (30cm) 
 # the output raster has the extent set and the non-crop cells are made to be NA
@@ -61,13 +53,15 @@ ValueCropRaster <- function(valueRaster, coverRaster, resampleMethod = "bilinear
   valueRaster <- mask(valueRaster, coverRaster)
 }
 
+# create a reprojection parameter file for the MODIS data
+
 ReprojectParam <- function(input, output, paramFile) {
   print(paramFile)
   sink(file = paramFile)
-  cat(paste("INPUT_FILENAME = ", input, sep = ""))
+  cat(paste("INPUT_FILENAME = ", "\"", input, "\"", sep = ""))
   cat("\n")
   cat("\n")
-  cat("SPECTRAL_SUBSET = ( 1 )")
+  cat("SPECTRAL_SUBSET = (0 1 )")
   cat("\n")
   cat("\n")
   cat("SPATIAL_SUBSET_TYPE = INPUT_LAT_LONG")
@@ -78,7 +72,7 @@ ReprojectParam <- function(input, output, paramFile) {
   cat("SPATIAL_SUBSET_LR_CORNER = ( -9.999999999 40.617064472 )")
   cat("\n")
   cat("\n")
-  cat(paste("OUTPUT_FILENAME = ", output, sep = ""))
+  cat(paste("OUTPUT_FILENAME = ", "\"", output, "\"", sep = ""))
   cat("\n")
   cat("\n")
   cat("RESAMPLING_TYPE = NEAREST_NEIGHBOR")
@@ -111,16 +105,6 @@ ReprojectParam <- function(input, output, paramFile) {
 # "functionType": the function to apply (mean, sd, etc.)
 
 MovingAverageCorrelation <- function(indepedent, depedent, startLength, endLength, functionType) {
-  # declare an matrix for the different rolling functions and a correlation vector
-#   avgMat <- matrix(nrow = length(depedent), ncol = (endLength-startLength+1)) 
-#   corVector <- rep(NA, ncol(avgMat))
-#   # run the rollapply function over the data and calculate the corresponding correlations
-#   for (i in startLength:endLength) {
-#     avgMat[, i] <- rollapply(indepedent, width = i, FUN = functionType, 
-#                              na.rm = T, fill = NA, align = "right")
-#     corVector[i] <- cor(avgMat[, i], depedent, use = "complete.obs")
-#   }
-#   return(corVector)
   out <- sapply(startLength:endLength, function(i) cor(rollapplyr(
     indepedent, i, functionType, na.rm = TRUE, fill = NA), depedent, use = "complete.obs"))
   return(out)
