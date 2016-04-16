@@ -11,7 +11,6 @@ registerDoMC(2)
 library(stringr)
 library(geosphere)
 
-
 # source files (shagasha and sorwate will create new dataframes)
 
 source('~/Github/IBI/fullMulindiClean.R')
@@ -53,7 +52,8 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
   }
   
   # set data as the training data as up until the prediction year (exclusive)
-  # remove August 2014 which has some missing data
+  # remove August 2014 which has some missing data for some of the data
+  # removing the missing data improves comparability
   
   data <- data[as.numeric(as.character(data$year)) >= startPredYear, ]
   data <- data[!(as.numeric(as.character(data$month)) ==8 & as.numeric(as.character(data$year)) == 2014), ]
@@ -88,26 +88,25 @@ FutureModelPred <- function(data, providedModel = T, model = NULL, startPredYear
   rsqWeek <- R2(predWeek$yield, trueWeek$yield, na.rm = T, formula = "corr")
   rsqMonth <- R2(predMonth$yield, trueMonth$yield,  na.rm = T, formula = "corr")
   
-  print(paste("Plantation Name:", comment(data), modelType))
-  print(paste("Daily RMSE is:", as.numeric(rmseDay)))
-  print(paste("Weekly RMSE is:", as.numeric(rmseWeek)))
-  print(paste("Monthly RMSE is:", as.numeric(rmseMonth)))
-  print(paste("Daily R-Squared is:", as.numeric(rsqDay)))
-  print(paste("Weekly R-Squared is:", as.numeric(rsqWeek)))
-  print(paste("Monthly R-Squared is:", as.numeric(rsqMonth)))
-  print(paste(""))
+  cat(paste("Plantation Name:", comment(data), modelType), "\n")
+  cat(paste("Daily RMSE is:", as.numeric(rmseDay)), "\n")
+  cat(paste("Weekly RMSE is:", as.numeric(rmseWeek)), "\n")
+  cat(paste("Monthly RMSE is:", as.numeric(rmseMonth)), "\n")
+  cat(paste("Daily R-Squared is:", as.numeric(rsqDay)), "\n")
+  cat(paste("Weekly R-Squared is:", as.numeric(rsqWeek)), "\n")
+  cat(paste("Monthly R-Squared is:", as.numeric(rsqMonth)), "\n")
+  cat("\n")
   
   return(list(rmseDay = rmseDay, rmseWeek = rmseWeek, rmseMonth = rmseMonth, 
               rsqDay = rsqDay, rsqWeek = rsqWeek, rsqMonth = rsqMonth,
               predDay = pred, predWeek = predWeek, predMonth = predMonth,
               trueDay = data, trueWeek = trueWeek, trueMonth = trueMonth,
               fit = model))
-  
-  
 }
 
 # compute model fits and results for GLMNet models
 # RF models not run but results are worse than GLMNet
+# RF models included only as a robustness check
 
 mul2014SatGLM <- FutureModelPred(data = mulSatDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
 sha2014SatGLM <- FutureModelPred(data = shagSatDta, providedModel = F, startPredYear = 2014, modelType = "glmnet")
@@ -133,13 +132,13 @@ ass2014SatGLM <- FutureModelPred(data = assopthe$satDta, providedModel = F, star
 # #rug2014SatRF <- FutureModelPred(data = rugundo$satDta, providedModel = F, startPredYear = 2014, modelType = "rf")
 # ass2014SatRF <- FutureModelPred(data = assopthe$satDta, providedModel = F, startPredYear = 2014, modelType = "rf")
 
-# save a list of models
+# save a list of all GLM and RF models
 
 saveList = c(ls(pattern = "RF"), ls(pattern = "GLM"))
 save(list = saveList, file = "/Users/Tom/Documents/IBI/fullEstateModelsNAisNAnoRF.RData")
 
 # create dataframes that will contain results of model predictions on holdout set
-# not a particularly elegant solution but it works
+# not a particularly elegant solution
 
 estateNames = c("Mulindi", "Shagasha", "Rukeri", "Cyohoha", "Assopthe", "Sorwathe", "Average")
 rowNames = c("Factory Weather Station E-Net", "Satellite Composite E-Net")
@@ -148,6 +147,10 @@ colnames(df) <- estateNames
 rownames(df) <- rowNames
 
 dayRsq <- weekRsq <- monthRsq <- dayRmse <- weekRmse <- monthRmse <- df
+
+# for each of the fits in the saveList, pull the estate name, 
+# the data type (estate or satellite), and GLM or RF
+# then put the results into the approriate dataframes
 
 for (i in 1:length(saveList)) {
   plant <- substr(saveList[i], 1, 3)
@@ -190,6 +193,8 @@ for (i in 1:length(saveList)) {
     monthRmse["Factory Weather Station Random Forest", plant] <- eval(parse(text=paste(saveList[i], "$rmseMonth", sep = "")))
   }
 }
+
+# compute a final average and round to 2 decimals
 
 dayRsq$Average <- rowMeans(dayRsq[, 1:(ncol(dayRsq-1))], na.rm = T)
 weekRsq$Average <- rowMeans(weekRsq[, 1:(ncol(weekRsq-1))], na.rm = T)
